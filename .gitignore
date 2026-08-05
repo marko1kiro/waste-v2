@@ -1,0 +1,49 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-api/
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# debug
+npm-debug.log*
+
+.vercel
+.env*
+!.env.example
+
+# local browser/QA artifacts
+.playwright-mcp/
+*-snap.md
+qa-*.md
+qa-*.txt
+current-snap.md
+full-qa-start.md
+manual-*-qa.md
+manual-waste-after-personnel*.md
+mobile-superadmin-profile.md
+store-profile-mobile.md
+superadmin-login-*.md
+after-*.md
+click-bug-snap.md
+console-*.txt
+waste-form-success.png
+
+# Personal signature reference assets — keep outside public repositories
+docs/signatures/

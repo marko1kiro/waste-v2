@@ -1,0 +1,966 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'wouter'
+import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '@/contexts/AuthContext'
+import { apiClient } from '@/lib/api-client'
+import { fileToBase64 } from '@/lib/file-utils'
+import { queryClient } from '@/lib/query-client'
+import { toast } from '@/hooks/use-toast'
+import { ButtonLoadingSpinner, ProgressOverlay, type ProgressState } from '@/components/ui/loading-spinner'
+import { AuthenticatedImage } from '@/components/ui/authenticated-image'
+import MultiFileUpload from '@/components/ui/multi-file-upload'
+import { getBusinessDateWIB, getCurrentShiftWIB, formatTimeWIB, SHIFTS } from '@shared/timezone'
+import { STATIONS, METHODS } from '@shared/schema'
+import { parsePasteWaste, type PasteIssue } from '@/lib/paste-waste-parser'
+import { TESTER_ITEMS } from '@shared/tester'
+import { STATION_UI } from '@shared/station-ui'
+import type { Station } from '@shared/schema'
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  ArrowLeft,
+  AlertTriangle,
+} from 'lucide-react'
+
+interface StationItem {
+  id: number
+  station: string
+  nama_produk: string
+  unit: string
+  kode_lot_wajib: boolean
+  is_manual: boolean
+}
+
+interface Personnel {
+  name: string
+  full_name: string
+  role: 'qc' | 'manager'
+  signature_url: string
+}
+
+interface WasteRow {
+  id: string
+  namaProduk: string
+  kodeProduk: string
+  jumlahProduk: number
+  unit: string
+  metodePemusnahan: string
+  alasanPemusnahan: string
+  isManual: boolean
+}
+
+type Step = 'paste' | 'config' | 'items' | 'preview' | 'success'
+
+type DraftPayload = {
+  businessDate: string
+  shift: (typeof SHIFTS)[number]
+  selectedStations: Station[]
+  rowsByStation: Record<string, WasteRow[]>
+  savedAt: number
+  qcName?: string
+  managerName?: string
+  testerMode?: boolean
+  testerChecks?: Record<string, boolean>
+  pasteRaw?: string
+  parsedDestructionTime?: string
+}
+
+const MANUAL_DRAFT_KEY = 'waste_app_draft_v2'
+const PASTE_DRAFT_KEY = 'waste_app_paste_draft_v1'
+const FRESH_DRAFT_MS = 60_000
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+function dateToDDMMYYYY(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-')
+  return `${d}${m}${y}`
+}
+
+const KODE_LOT_DATE_PICKER_ITEMS = ['KULIT PANGSIT', 'MIE POLOS']
+
+function makeEmptyRow(businessDate?: string): WasteRow {
+  return {
+    id: uid(),
+    namaProduk: '',
+    kodeProduk: businessDate ? dateToDDMMYYYY(businessDate) : '',
+    jumlahProduk: 0,
+    unit: 'PCS',
+    metodePemusnahan: 'DIBUANG',
+    alasanPemusnahan: '',
+    isManual: false,
+  }
+}
+
+
+
+export default function AutoWaste() {
+  const [location] = useLocation()
+  const pasteMode = location === '/paste-waste'
+  return <WasteForm key={pasteMode ? 'paste' : 'manual'} pasteMode={pasteMode} />
+}
+
+function WasteForm({ pasteMode }: { pasteMode: boolean }) {
+  useAuth()
+
+  const draftKey = pasteMode ? PASTE_DRAFT_KEY : MANUAL_DRAFT_KEY
+  const [step, setStep] = useState<Step>(pasteMode ? 'paste' : 'config')
+  const [businessDate, setBusinessDate] = useState(getBusinessDateWIB())
+  const [shift, setShift] = useState<(typeof SHIFTS)[number]>(getCurrentShiftWIB())
+  const [selectedStations, setSelectedStations] = useState<Station[]>(['NOODLE'])
+  const [expandedStation, setExpandedStation] = useState<Station>('NOODLE')
+  const initDate = getBusinessDateWIB()
+  const [rowsByStation, setRowsByStation] = useState<Record<string, WasteRow[]>>({
+    NOODLE: [makeEmptyRow(initDate)],
+    DIMSUM: [makeEmptyRow(initDate)],
+    BAR: [makeEmptyRow(initDate)],
+    PRODUKSI: [makeEmptyRow(initDate)],
+  })
+  const [collapsedRows, setCollapsedRows] = useState<Record<string, string[]>>({
+    NOODLE: [],
+    DIMSUM: [],
+    BAR: [],
+    PRODUKSI: [],
+  })
+  const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<ProgressState | null>(null)
+  const [successMessage, setSuccessMessage] = useState('')
+  const [draftFound, setDraftFound] = useState<DraftPayload | null>(null)
+  const [filesByStation, setFilesByStation] = useState<Record<string, File[]>>({})
+  const [qcName, setQcName] = useState('')
+  const [managerName, setManagerName] = useState('')
+  const [testerMode, setTesterMode] = useState(false)
+  const [testerChecks, setTesterChecks] = useState<Record<string, boolean>>({})
+  const [testerCollapsed, setTesterCollapsed] = useState(true)
+  const [rawPaste, setRawPaste] = useState('')
+  const [pasteApplyIssues, setPasteApplyIssues] = useState<PasteIssue[]>([])
+  const parsedPaste = useMemo(() => parsePasteWaste(rawPaste), [rawPaste])
+
+  const stationQueries = {
+    NOODLE: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'NOODLE'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=NOODLE') }),
+    DIMSUM: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'DIMSUM'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=DIMSUM') }),
+    BAR: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'BAR'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=BAR') }),
+    PRODUKSI: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'PRODUKSI'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=PRODUKSI') }),
+  }
+
+  const { data: qcData } = useQuery<{ success: boolean; data: Personnel[] }>({ queryKey: ['personnel', 'qc'], queryFn: () => apiClient.fetch('/api/signatures?role=qc') })
+  const { data: managerData } = useQuery<{ success: boolean; data: Personnel[] }>({ queryKey: ['personnel', 'manager'], queryFn: () => apiClient.fetch('/api/signatures?role=manager') })
+
+  const qcList = qcData?.data || []
+  const managerList = managerData?.data || []
+  const selectedQC = qcList.find((p) => (p.full_name || p.name) === qcName)
+  const selectedManager = managerList.find((p) => (p.full_name || p.name) === managerName)
+  const catalogError = STATIONS.some((station) => stationQueries[station].error)
+  const personnelMissing = qcList.length === 0 || managerList.length === 0
+
+  useEffect(() => {
+    const raw = localStorage.getItem(draftKey)
+    if (!raw) return
+    try {
+      const draft = JSON.parse(raw) as DraftPayload
+      const age = Date.now() - draft.savedAt
+      if (age < FRESH_DRAFT_MS) {
+        setBusinessDate(draft.businessDate)
+        setShift(draft.shift)
+        setSelectedStations(draft.selectedStations)
+        setExpandedStation(draft.selectedStations[0] || 'NOODLE')
+        setRowsByStation((prev) => ({ ...prev, ...draft.rowsByStation }))
+        setQcName(draft.qcName || '')
+        setManagerName(draft.managerName || '')
+        setTesterMode(Boolean(draft.testerMode))
+        setTesterChecks(draft.testerChecks || {})
+        if (pasteMode) setRawPaste(draft.pasteRaw || '')
+        toast.info('Draft ketemu nih', 'Lanjutin yang kemarin ya.')
+      } else {
+        setDraftFound(draft)
+      }
+    } catch {}
+  }, [draftKey, pasteMode])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const payload: DraftPayload = {
+        businessDate,
+        shift,
+        selectedStations,
+        rowsByStation,
+        savedAt: Date.now(),
+        qcName,
+        managerName,
+        testerMode,
+        testerChecks,
+        pasteRaw: pasteMode ? rawPaste : undefined,
+        parsedDestructionTime: pasteMode ? parsedPaste.destructionTime || undefined : undefined,
+      }
+      localStorage.setItem(draftKey, JSON.stringify(payload))
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [businessDate, shift, selectedStations, rowsByStation, qcName, managerName, testerMode, testerChecks, pasteMode, rawPaste, parsedPaste.destructionTime, draftKey])
+
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      const hasData = Object.values(rowsByStation).some((rows) => rows.some((r) => r.namaProduk.trim() !== '')) || testerMode
+      if (!hasData || step === 'success') return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [rowsByStation, step, testerMode])
+
+  const totalValidItems = useMemo(() => {
+    return selectedStations.reduce((acc, station) => acc + rowsByStation[station].filter((r) => r.namaProduk.trim() !== '').length, 0)
+  }, [rowsByStation, selectedStations])
+  const testerIssueCount = useMemo(() => TESTER_ITEMS.filter((item) => testerChecks[item.name] === false).length, [testerChecks])
+  const hasSelectedStations = selectedStations.length > 0
+
+  function restoreDraft() {
+    if (!draftFound) return
+    setBusinessDate(draftFound.businessDate)
+    setShift(draftFound.shift)
+    setSelectedStations(draftFound.selectedStations)
+    setExpandedStation(draftFound.selectedStations[0] || 'NOODLE')
+    setRowsByStation((prev) => ({ ...prev, ...draftFound.rowsByStation }))
+    setQcName(draftFound.qcName || '')
+    setManagerName(draftFound.managerName || '')
+    setTesterMode(Boolean(draftFound.testerMode))
+    setTesterChecks(draftFound.testerChecks || {})
+    if (pasteMode) setRawPaste(draftFound.pasteRaw || '')
+    setDraftFound(null)
+    toast.info('Draft ketemu nih', 'Lanjutin yang kemarin ya.')
+  }
+
+  function discardDraft() {
+    localStorage.removeItem(draftKey)
+    setDraftFound(null)
+    toast.info('Draft dibuang')
+  }
+
+  function toggleStation(station: Station) {
+    setSelectedStations((prev) => {
+      const exists = prev.includes(station)
+      const next = exists ? prev.filter((s) => s !== station) : [...prev, station]
+      if (!exists && next.length === 1) setExpandedStation(station)
+      if (exists && expandedStation === station && next[0]) setExpandedStation(next[0])
+      return next
+    })
+  }
+
+  function toggleAllStations() {
+    if (selectedStations.length === STATIONS.length) {
+      setSelectedStations([])
+    } else {
+      setSelectedStations([...STATIONS])
+      setExpandedStation(STATIONS[0])
+    }
+  }
+
+  function getAvailableOptions(station: Station, currentRowId: string) {
+    const selectedNames = rowsByStation[station]
+      .filter((row) => row.id !== currentRowId && row.namaProduk.trim() !== '' && !row.isManual)
+      .map((row) => row.namaProduk)
+
+    return (stationQueries[station].data?.data || []).filter((item) => item.is_manual || !selectedNames.includes(item.nama_produk))
+  }
+
+  function addRow(station: Station) {
+    setCollapsedRows((prev) => ({
+      ...prev,
+      [station]: rowsByStation[station].map((row) => row.id),
+    }))
+    setRowsByStation((prev) => ({
+      ...prev,
+      [station]: [...prev[station], makeEmptyRow(businessDate)],
+    }))
+    setExpandedStation(station)
+  }
+
+  function removeRow(station: Station, rowId: string) {
+    setRowsByStation((prev) => ({
+      ...prev,
+      [station]: prev[station].filter((row) => row.id !== rowId),
+    }))
+    setCollapsedRows((prev) => ({
+      ...prev,
+      [station]: prev[station].filter((id) => id !== rowId),
+    }))
+  }
+
+  function updateRow(station: Station, rowId: string, patch: Partial<WasteRow>) {
+    setRowsByStation((prev) => ({
+      ...prev,
+      [station]: prev[station].map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    }))
+  }
+
+  function toggleRowCollapse(station: Station, rowId: string) {
+    setCollapsedRows((prev) => {
+      const isCollapsed = prev[station].includes(rowId)
+      return {
+        ...prev,
+        [station]: isCollapsed ? prev[station].filter((id) => id !== rowId) : [...prev[station], rowId],
+      }
+    })
+  }
+
+  function selectProduct(station: Station, rowId: string, value: string) {
+    if (value === '__MANUAL__') {
+      const manualAlasan = station === 'BAR' ? 'SUSUT' : ''
+      updateRow(station, rowId, { namaProduk: '', isManual: true, unit: 'PCS', alasanPemusnahan: manualAlasan })
+      return
+    }
+    const item = (stationQueries[station].data?.data || []).find((c) => c.nama_produk === value)
+    if (!item) return
+    // Station BAR: default alasan SUSUT, kecuali item mengandung BUSUK
+    const alasan = station === 'BAR'
+      ? (item.nama_produk.includes('BUSUK') ? 'BUSUK' : 'SUSUT')
+      : ''
+    updateRow(station, rowId, {
+      namaProduk: item.nama_produk,
+      unit: item.unit,
+      isManual: item.is_manual,
+      alasanPemusnahan: alasan,
+    })
+  }
+
+  function normalizePersonnelName(value: string): string {
+    return value.trim().replace(/\s+/g, ' ').toLocaleUpperCase('id-ID')
+  }
+
+  function findPersonnel(personnel: Personnel[], pastedName: string | null): Personnel | undefined {
+    if (!pastedName) return undefined
+    const normalized = normalizePersonnelName(pastedName)
+    return personnel.find((person) => (
+      normalizePersonnelName(person.name) === normalized ||
+      normalizePersonnelName(person.full_name) === normalized
+    ))
+  }
+
+  const pastedQC = findPersonnel(qcList, parsedPaste.qcName)
+  const pastedManager = findPersonnel(managerList, parsedPaste.managerName)
+  const catalogLoading = STATIONS.some((station) => stationQueries[station].isLoading)
+  const pasteCatalogWarnings = useMemo<PasteIssue[]>(() => {
+    if (!rawPaste.trim() || catalogLoading) return []
+    return parsedPaste.items.flatMap((item) => {
+      const exactCatalogMatch = (stationQueries[item.station].data?.data || []).some(
+        (catalogItem) => catalogItem.nama_produk.trim().toLocaleUpperCase('id-ID') === item.namaProduk.trim().toLocaleUpperCase('id-ID'),
+      )
+      return exactCatalogMatch
+        ? []
+        : [{ line: item.line, message: `Produk "${item.namaProduk}" tidak ditemukan persis di catalog ${item.station}; disimpan sebagai item manual tanpa koreksi nama.` }]
+    })
+  }, [rawPaste, parsedPaste.items, catalogLoading, stationQueries])
+
+  function applyPaste() {
+    const issues: PasteIssue[] = []
+    if (parsedPaste.errors.length > 0) {
+      setPasteApplyIssues(parsedPaste.errors)
+      return
+    }
+    if (catalogLoading) {
+      setPasteApplyIssues([{ line: 0, message: 'Catalog masih dimuat. Tunggu sebentar lalu coba lagi.' }])
+      return
+    }
+    if (catalogError) {
+      setPasteApplyIssues([{ line: 0, message: 'Catalog gagal dimuat. Refresh halaman lalu coba lagi.' }])
+      return
+    }
+    if (!pastedQC) issues.push({ line: 0, message: `QC "${parsedPaste.qcName || '-'}" tidak ditemukan di personnel aktif.` })
+    if (!pastedManager) issues.push({ line: 0, message: `Manager "${parsedPaste.managerName || '-'}" tidak ditemukan di personnel aktif.` })
+    if (issues.length > 0) {
+      setPasteApplyIssues(issues)
+      return
+    }
+
+    const nextRows: Record<string, WasteRow[]> = {
+      NOODLE: [],
+      DIMSUM: [],
+      BAR: [],
+      PRODUKSI: [],
+    }
+    const nextStations: Station[] = []
+    for (const item of parsedPaste.items) {
+      const station = item.station as Station
+      if (!nextStations.includes(station)) nextStations.push(station)
+      const exactCatalogItem = (stationQueries[station].data?.data || []).find(
+        (catalogItem) => catalogItem.nama_produk.trim().toLocaleUpperCase('id-ID') === item.namaProduk.trim().toLocaleUpperCase('id-ID'),
+      )
+      nextRows[station].push({
+        id: uid(),
+        namaProduk: exactCatalogItem ? exactCatalogItem.nama_produk : item.namaProduk,
+        kodeProduk: parsedPaste.lotCode || '',
+        jumlahProduk: item.jumlahProduk,
+        unit: item.unit,
+        metodePemusnahan: parsedPaste.method || 'DIBUANG',
+        alasanPemusnahan: item.alasanPemusnahan,
+        isManual: !exactCatalogItem,
+      })
+    }
+
+    setBusinessDate(parsedPaste.businessDate || getBusinessDateWIB())
+    setShift(parsedPaste.shift || getCurrentShiftWIB())
+    setSelectedStations(nextStations)
+    setExpandedStation(nextStations[0] || 'NOODLE')
+    setRowsByStation(nextRows)
+    setCollapsedRows({ NOODLE: [], DIMSUM: [], BAR: [], PRODUKSI: [] })
+    setQcName(pastedQC?.full_name || pastedQC?.name || '')
+    setManagerName(pastedManager?.full_name || pastedManager?.name || '')
+    setTesterMode(false)
+    setTesterChecks({})
+    setPasteApplyIssues([])
+    setStep('config')
+    if (pasteCatalogWarnings.length > 0) toast.warning('Ada item manual', `${pasteCatalogWarnings.length} produk tidak ada exact match di catalog.`)
+    else toast.success('Format diterapkan', `${parsedPaste.items.length} item siap ditinjau.`)
+  }
+
+  async function handleSubmit() {
+    if (!hasSelectedStations && !testerMode) {
+      toast.error('Eh, ada yang kurang', 'Pilih minimal 1 station dong.')
+      return
+    }
+    if (hasSelectedStations && totalValidItems === 0) {
+      toast.error('Eh, ada yang kurang', 'Isi minimal 1 item dong buat station yang dipilih.')
+      return
+    }
+    if (hasSelectedStations) {
+      const hasInvalidQty = selectedStations.some((station) => rowsByStation[station].some((r) => r.namaProduk.trim() !== '' && r.jumlahProduk <= 0))
+      if (hasInvalidQty) {
+        toast.error('Eh, ada yang kurang', 'Qty harus diisi dan lebih dari 0 ya.')
+        return
+      }
+    }
+    if (testerMode && !hasSelectedStations && testerIssueCount === 0) {
+      toast.warning('Tester Kosong', 'Ga ada issue tester yang mau disubmit.')
+      return
+    }
+    if (!qcName || !managerName) {
+      toast.error('Eh, ada yang kurang', 'QC sama Manager harus dipilih dulu dong.')
+      return
+    }
+    if (pasteMode && !parsedPaste.destructionTime) {
+      toast.error('Format paste belum lengkap', 'Jam pemusnahan hasil paste tidak valid. Kembali ke format paste dan perbaiki dulu ya.')
+      return
+    }
+
+    setLoading(true)
+
+    // Calculate total steps for progress
+    const totalFiles = selectedStations.reduce((sum, s) => sum + (filesByStation[s]?.length || 0), 0)
+    const stationCount = hasSelectedStations ? selectedStations.length : 0
+    const hasTester = testerMode && testerIssueCount > 0
+    // Steps: upload files + check dup per station + submit per station + tester + finalize
+    const totalSteps = totalFiles + stationCount + stationCount + (hasTester ? 1 : 0) + 1
+    let currentStep = 0
+    const tick = (label: string) => { currentStep++; setProgress({ current: currentStep, total: totalSteps, label }) }
+
+    try {
+      // Seluruh station dicek terlebih dahulu agar tidak ada foto yang terunggah
+      // bila salah satu station ternyata sudah pernah disubmit.
+      if (hasSelectedStations) {
+        for (const station of selectedStations) {
+          tick(`Cek duplikat ${station}...`)
+          const dup = await apiClient.fetch<{ isDuplicate: boolean }>(`/api/get-day-data?date=${businessDate}&shift=${shift}&station=${station}`)
+          if (dup.isDuplicate) throw new Error(`Data duplikat untuk station ${station} pada tanggal dan shift ini.`)
+        }
+      }
+
+      const dokumentasiByStation: Record<string, string[]> = {}
+      for (const station of selectedStations) {
+        const stationFiles = filesByStation[station] || []
+        const urls: string[] = []
+        for (const file of stationFiles) {
+          tick(`Lagi upload foto ${station}...`)
+          const base64 = await fileToBase64(file)
+          const uploaded = await apiClient.fetch<{ success: boolean; proxyUrl: string }>('/api/upload-file', {
+            method: 'POST',
+            body: JSON.stringify({ filename: file.name, contentType: file.type, base64, folder: 'waste-docs' }),
+          })
+          if (uploaded.proxyUrl) urls.push(uploaded.proxyUrl)
+        }
+        dokumentasiByStation[station] = urls
+      }
+
+      if (hasSelectedStations) {
+        for (const station of selectedStations) {
+          tick(`Nyimpen data ${station}...`)
+          const validRows = rowsByStation[station].filter((r) => r.namaProduk.trim() !== '')
+          if (validRows.length === 0) continue
+
+          await apiClient.fetch('/api/submit-waste', {
+            method: 'POST',
+            body: JSON.stringify({
+              tanggal: businessDate,
+              kategoriInduk: station,
+              shift,
+              storeName: 'BEKASI KP. BULU',
+              productList: JSON.stringify(validRows.map((r) => r.namaProduk.toUpperCase())),
+              jumlahProdukList: JSON.stringify(validRows.map((r) => r.jumlahProduk)),
+              kodeProdukList: JSON.stringify(validRows.map((r) => r.kodeProduk)),
+              unitList: JSON.stringify(validRows.map((r) => r.unit)),
+              metodePemusnahanList: JSON.stringify(validRows.map((r) => r.metodePemusnahan)),
+              alasanPemusnahanList: JSON.stringify(validRows.map((r) => r.alasanPemusnahan)),
+              jamTanggalPemusnahanList: JSON.stringify(pasteMode
+                ? validRows.map(() => parsedPaste.destructionTime || '')
+                : validRows.map(() => formatTimeWIB())),
+              parafQCName: qcName,
+              parafQCUrl: selectedQC?.signature_url || '',
+              parafManagerName: managerName,
+              parafManagerUrl: selectedManager?.signature_url || '',
+              dokumentasiUrls: JSON.stringify(dokumentasiByStation[station] || []),
+            }),
+          })
+        }
+      }
+
+      if (hasTester) {
+        tick('Nyimpen data tester...')
+        const payloadRows = TESTER_ITEMS.filter((item) => testerChecks[item.name] === false).map((item) => ({
+          namaProduk: item.name,
+          kodeProduk: '',
+          jumlahProduk: 1,
+          unit: 'PCS',
+          metodePemusnahan: 'DIBUANG',
+          alasanPemusnahan: 'TESTER',
+        }))
+
+        await apiClient.fetch('/api/submit-waste', {
+          method: 'POST',
+          body: JSON.stringify({
+            tanggal: businessDate,
+            kategoriInduk: 'BAR',
+            shift,
+            storeName: 'BEKASI KP. BULU',
+            productList: JSON.stringify(payloadRows.map((r) => r.namaProduk.toUpperCase())),
+            jumlahProdukList: JSON.stringify(payloadRows.map((r) => r.jumlahProduk)),
+            kodeProdukList: JSON.stringify(payloadRows.map((r) => r.kodeProduk)),
+            unitList: JSON.stringify(payloadRows.map((r) => r.unit)),
+            metodePemusnahanList: JSON.stringify(payloadRows.map((r) => r.metodePemusnahan)),
+            alasanPemusnahanList: JSON.stringify(payloadRows.map((r) => r.alasanPemusnahan)),
+            jamTanggalPemusnahanList: JSON.stringify(pasteMode
+              ? payloadRows.map(() => parsedPaste.destructionTime || '')
+              : payloadRows.map(() => formatTimeWIB())),
+            parafQCName: qcName,
+            parafQCUrl: selectedQC?.signature_url || '',
+            parafManagerName: managerName,
+            parafManagerUrl: selectedManager?.signature_url || '',
+            dokumentasiUrls: JSON.stringify(dokumentasiByStation['BAR'] || []),
+          }),
+        })
+      }
+
+      tick('Update status...')
+      await queryClient.invalidateQueries({ queryKey: ['shift-status'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-data'] })
+      localStorage.removeItem(draftKey)
+      setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`)
+      setStep('success')
+      toast.success('Mantap', 'Data waste udah kesimpen.')
+    } catch (err) {
+      toast.error('Waduh gagal submit', err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoading(false)
+      setProgress(null)
+    }
+  }
+
+  function resetForm() {
+    setStep(pasteMode ? 'paste' : 'config')
+    setBusinessDate(getBusinessDateWIB())
+    setShift(getCurrentShiftWIB())
+    setSelectedStations(['NOODLE'])
+    setExpandedStation('NOODLE')
+    const resetDate = getBusinessDateWIB()
+    setRowsByStation({ NOODLE: [makeEmptyRow(resetDate)], DIMSUM: [makeEmptyRow(resetDate)], BAR: [makeEmptyRow(resetDate)], PRODUKSI: [makeEmptyRow(resetDate)] })
+    setCollapsedRows({ NOODLE: [], DIMSUM: [], BAR: [], PRODUKSI: [] })
+    setSuccessMessage('')
+    setFilesByStation({})
+    setQcName('')
+    setManagerName('')
+    setTesterMode(false)
+    setTesterChecks({})
+    setTesterCollapsed(true)
+    setRawPaste('')
+    setPasteApplyIssues([])
+    localStorage.removeItem(draftKey)
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl py-2">
+      {progress && <ProgressOverlay progress={progress} />}
+
+      {draftFound && (
+        <div className="mb-4 rounded-xl border-2 border-warning/40 bg-warning/10 p-4 shadow-nb-sm">
+          <div className="mb-2 flex items-start gap-2"><AlertTriangle size={18} className="mt-0.5 text-warning" /><div><p className="text-sm font-black text-warning">Ada draft nih</p><p className="text-xs text-text-muted">Tersimpan untuk {draftFound.selectedStations.join(', ')} • {draftFound.shift}</p></div></div>
+          <div className="flex gap-2"><button type="button" onClick={restoreDraft} className="rounded-lg border-2 border-[#000] bg-warning px-4 py-2 text-xs font-black text-black shadow-nb-sm">Lanjut</button><button type="button" onClick={discardDraft} className="rounded-lg border-2 border-border bg-[#141414] px-4 py-2 text-xs font-bold text-text-muted">Buang</button></div>
+        </div>
+      )}
+
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-black text-primary">{pasteMode ? 'Paste Format Waste' : 'Input Waste'}</h1>
+          <p className="text-xs text-text-muted">Step {stepLabel(step, pasteMode)}</p>
+        </div>
+        {step !== 'config' && step !== 'success' && step !== 'paste' && (
+          <button type="button" onClick={() => setStep(step === 'items' ? 'config' : 'items')} className="flex items-center gap-1 rounded-lg border-2 border-border bg-[#141414] px-3 py-2 text-xs font-bold text-text-muted hover:text-text-primary"><ArrowLeft size={14} /> Config</button>
+        )}
+      </div>
+
+      {step === 'paste' && (
+        <section className="space-y-4 rounded-xl border-2 border-primary/30 bg-[#111] p-4 shadow-nb-md">
+          <div>
+            <h2 className="text-sm font-black text-primary">Paste pesan WhatsApp Waste</h2>
+            <p className="mt-1 text-xs text-text-muted">Parser akan membaca metadata, station, dan item. Setelah diterapkan, semua data masih bisa diedit di form biasa.</p>
+          </div>
+          <textarea
+            value={rawPaste}
+            onChange={(event) => { setRawPaste(event.target.value); setPasteApplyIssues([]) }}
+            rows={16}
+            placeholder={'*WASTE OPENING*\n05-08-2026\nQC : NAMA QC\nMANAGER : NAMA MANAGER\nJAM PEMUSNAHAN : 15.04 WIB\nMETODE : DIBUANG\nKODE LOT : TANGGAL PEMUSNAHAN\n\n*NOODLE*\n- PANGSIT GORENG :18 PCS - PATAH & KUNCUP'}
+            className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-dim focus:border-warning"
+          />
+
+          {rawPaste.trim() && (
+            <div className="rounded-lg border border-border bg-[#0d0d0d] p-3 text-xs text-text-muted">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <span>Tanggal: <strong className="text-text-primary">{parsedPaste.businessDate || '-'}</strong></span>
+                <span>Shift: <strong className="text-text-primary">{parsedPaste.shift || '-'}</strong></span>
+                <span>Jam: <strong className="text-text-primary">{parsedPaste.destructionTime || '-'}</strong></span>
+                <span>Metode: <strong className="text-text-primary">{parsedPaste.method || '-'}</strong></span>
+                <span>Kode Lot: <strong className="text-text-primary">{parsedPaste.lotCode || '-'}</strong></span>
+                <span>Item valid: <strong className="text-text-primary">{parsedPaste.items.length}</strong></span>
+              </div>
+            </div>
+          )}
+
+          {rawPaste.trim() && parsedPaste.errors.length > 0 && (
+            <PasteIssues title="Perlu diperbaiki" issues={parsedPaste.errors} tone="danger" />
+          )}
+          {rawPaste.trim() && parsedPaste.warnings.length > 0 && (
+            <PasteIssues title="Peringatan parser" issues={parsedPaste.warnings} tone="warning" />
+          )}
+          {rawPaste.trim() && pasteCatalogWarnings.length > 0 && (
+            <PasteIssues title="Produk manual" issues={pasteCatalogWarnings} tone="warning" />
+          )}
+          {pasteApplyIssues.length > 0 && (
+            <PasteIssues title="Belum bisa diterapkan" issues={pasteApplyIssues} tone="danger" />
+          )}
+          {rawPaste.trim() && catalogLoading && <p className="text-xs text-text-muted">Memuat catalog untuk cek exact match...</p>}
+          {rawPaste.trim() && !catalogLoading && !catalogError && !pastedQC && <p className="text-xs text-danger">QC dari paste belum cocok dengan personnel aktif.</p>}
+          {rawPaste.trim() && !catalogLoading && !catalogError && !pastedManager && <p className="text-xs text-danger">Manager dari paste belum cocok dengan personnel aktif.</p>}
+
+          <button
+            type="button"
+            onClick={applyPaste}
+            disabled={!rawPaste.trim() || parsedPaste.errors.length > 0 || catalogLoading || Boolean(catalogError) || !pastedQC || !pastedManager}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-warning py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Terapkan ke Form <ChevronRight size={16} />
+          </button>
+        </section>
+      )}
+
+      {step === 'config' && (
+        <section className="space-y-4 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
+          {personnelMissing && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+              Data QC / Manager belum lengkap. Minta super admin lengkapin ya.
+            </div>
+          )}
+          {catalogError && (
+            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+              Catalog item ada yang gagal dimuat. Coba refresh ya.
+            </div>
+          )}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">Tanggal</label>
+              <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">Shift</label>
+              <select value={shift} onChange={(e) => setShift(e.target.value as (typeof SHIFTS)[number])} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning">{SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-[#0d0d0d] px-3 py-3 text-xs text-text-muted">
+            <div className="mb-2 flex items-center justify-between">
+              <span>{selectedStations.length} station dipilih. Nanti disubmit per station ya.</span>
+              <button type="button" onClick={toggleAllStations} className="font-black text-warning">{selectedStations.length === STATIONS.length ? 'Reset' : 'Pilih Semua'}</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {STATIONS.map((s) => (
+                <button key={s} type="button" onClick={() => toggleStation(s)} className={`rounded-lg border-2 px-3 py-3 text-xs font-black transition ${selectedStations.includes(s) ? 'border-warning bg-warning/10 text-warning shadow-nb-yellow' : 'border-border bg-[#141414] text-text-muted hover:text-text-primary'}`}>{s}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border-2 border-border bg-[#0d0d0d] p-3">
+            <label className="flex items-start gap-3"><input type="checkbox" checked={testerMode} onChange={(e) => setTesterMode(e.target.checked)} className="mt-1" /><div><p className="text-sm font-black text-text-primary">Tester Mode</p><p className="text-xs text-text-muted">Checklist observasi akhir shift.</p></div></label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">QC</label>
+              <select value={qcName} onChange={(e) => setQcName(e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning"><option value="">-- Pilih QC --</option>{qcList.map((p) => <option key={p.name} value={p.full_name || p.name}>{p.full_name || p.name}</option>)}</select>
+              {selectedQC?.signature_url && <AuthenticatedImage src={selectedQC.signature_url} alt={selectedQC.full_name || selectedQC.name} className="mt-2 h-14 rounded-lg border border-border bg-white p-1" />}
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">Manager</label>
+              <select value={managerName} onChange={(e) => setManagerName(e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning"><option value="">-- Pilih Manager --</option>{managerList.map((p) => <option key={p.name} value={p.full_name || p.name}>{p.full_name || p.name}</option>)}</select>
+              {selectedManager?.signature_url && <AuthenticatedImage src={selectedManager.signature_url} alt={selectedManager.full_name || selectedManager.name} className="mt-2 h-14 rounded-lg border border-border bg-white p-1" />}
+            </div>
+          </div>
+
+          {/* Inline validation hints */}
+          {!qcName && <p className="text-[11px] text-warning">⚠️ QC belum dipilih</p>}
+          {!managerName && <p className="text-[11px] text-warning">⚠️ Manager belum dipilih</p>}
+          {!testerMode && selectedStations.length === 0 && <p className="text-[11px] text-warning">⚠️ Pilih minimal 1 station atau aktifin tester mode</p>}
+
+          <button type="button" disabled={personnelMissing || !qcName || !managerName || (!testerMode && selectedStations.length === 0)} onClick={() => { setExpandedStation(selectedStations[0] || 'NOODLE'); setStep('items') }} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-warning py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg disabled:cursor-not-allowed disabled:opacity-50">Pilih Item {selectedStations.length ? `(${selectedStations.length} Station)` : ''} <ChevronRight size={16} /></button>
+        </section>
+      )}
+
+      {step === 'items' && (
+        <section className="space-y-4">
+          <div className="flex items-start justify-between rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
+            <div>
+              <h2 className="text-sm font-black text-text-primary">Pilih Item Waste</h2>
+              <p className="text-xs text-text-muted">{shift} • {businessDate} • {selectedStations.length} station dipilih</p>
+            </div>
+          </div>
+
+          <details className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
+            <summary className="cursor-pointer text-xs font-black text-text-primary">Tips Input</summary>
+            <ul className="mt-3 list-disc pl-5 text-xs text-text-muted">
+              <li>Bisa pilih banyak station sekaligus.</li>
+              <li>Fokus satu station yang lagi dibuka aja.</li>
+              <li>Pas nambah item, row lama auto nutup biar ga scroll panjang.</li>
+              <li>Item yang udah dipilih ga muncul lagi di dropdown.</li>
+            </ul>
+          </details>
+
+          {hasSelectedStations && selectedStations.map((station) => {
+            const rows = rowsByStation[station]
+            const itemCount = rows.filter((r) => r.namaProduk.trim() !== '').length
+            const isOpen = expandedStation === station
+
+            const stationUI = STATION_UI[station]
+
+            return (
+              <section key={station} className={`rounded-xl border-2 bg-[#111] shadow-nb-sm ${isOpen ? `${stationUI.borderClass} ${stationUI.bgClass}` : 'border-border'}`}>
+                <button type="button" onClick={() => setExpandedStation(station)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+                    <div>
+                      <div className={`text-sm font-black ${isOpen ? stationUI.textClass : 'text-text-primary'}`}>{station}</div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-text-muted">
+                        <span>{itemCount} item terisi</span>
+                        <span>•</span>
+                        <span>{rows.length} baris</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${isOpen ? `${stationUI.borderClass} ${stationUI.bgClass} ${stationUI.textClass}` : 'border-warning/30 bg-warning/10 text-warning'}`}>{itemCount}</span>
+                      <ChevronDown size={16} className={`transition-transform ${isOpen ? `rotate-180 ${stationUI.textClass}` : 'text-text-muted'}`} />
+                    </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-border px-4 pb-4 pt-2">
+                    {rows.length === 0 && <div className="rounded-lg border border-dashed border-border bg-[#0d0d0d] px-3 py-4 text-xs text-text-muted">Belum ada item nih. Tap Tambah Item di bawah.</div>}
+
+                    <div className="space-y-2">
+                      {rows.map((row, index) => {
+                        const isCollapsed = collapsedRows[station].includes(row.id)
+                        return (
+                          <div key={row.id} className="rounded-xl border border-border bg-[#0d0d0d]">
+                            <div className="flex items-center justify-between gap-2 px-3 py-2">
+                              <button type="button" onClick={() => toggleRowCollapse(station, row.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                                <ChevronDown size={14} className={`shrink-0 text-text-muted transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                                <span className="text-[10px] font-black text-text-muted">#{index + 1}</span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-sm font-bold text-text-primary">{row.namaProduk || 'Pilih item...'}</div>
+                                  {isCollapsed && (
+                                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-text-muted">
+                                      <span className="rounded-full border border-border px-2 py-0.5">{row.jumlahProduk > 0 ? `${row.jumlahProduk} ${row.unit}` : 'Qty belum diisi'}</span>
+                                      <span className="rounded-full border border-border px-2 py-0.5">{row.alasanPemusnahan || 'Alasan kosong'}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                              {rows.length > 1 && <button type="button" onClick={() => removeRow(station, row.id)} className="text-danger hover:text-red-300"><Trash2 size={14} /></button>}
+                            </div>
+
+                            {!isCollapsed && (
+                              <div className="grid gap-2 border-t border-border px-3 py-3 md:grid-cols-2">
+                                <div className="md:col-span-2">
+                                  <select value={row.isManual && row.namaProduk ? '__MANUAL__' : row.namaProduk} onChange={(e) => selectProduct(station, row.id, e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#111] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning">
+                                    <option value="">-- Pilih Produk --</option>
+                                    {getAvailableOptions(station, row.id).filter((c) => !c.is_manual).map((c) => <option key={c.id} value={c.nama_produk}>{c.nama_produk}</option>)}
+                                    <option value="__MANUAL__">LAINNYA (isi manual)</option>
+                                  </select>
+                                </div>
+
+                                <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">QTY</label>
+                                  <input type="number" min={1} inputMode="numeric" placeholder="Isi Quantity" value={row.jumlahProduk === 0 ? '' : String(row.jumlahProduk)} onChange={(e) => updateRow(station, row.id, { jumlahProduk: e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0 })} className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-dim" />
+                                </div>
+
+                                {row.isManual && (
+                                  <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
+                                    <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">NAMA MANUAL</label>
+                                    <input type="text" placeholder="Nama produk manual" value={row.namaProduk} onChange={(e) => updateRow(station, row.id, { namaProduk: e.target.value.toUpperCase() })} className="w-full bg-transparent text-sm text-text-primary outline-none" />
+                                  </div>
+                                )}
+
+                                <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">KODE LOT</label>
+                                  {KODE_LOT_DATE_PICKER_ITEMS.includes(row.namaProduk) ? (
+                                    <input type="date" value={row.kodeProduk.length === 8 ? `${row.kodeProduk.slice(4)}-${row.kodeProduk.slice(2,4)}-${row.kodeProduk.slice(0,2)}` : ''} onChange={(e) => updateRow(station, row.id, { kodeProduk: e.target.value ? dateToDDMMYYYY(e.target.value) : '' })} className="w-full bg-transparent text-sm text-text-primary outline-none" />
+                                  ) : (
+                                    <input type="text" value={row.kodeProduk} readOnly className="w-full bg-transparent text-sm text-text-muted outline-none cursor-default" />
+                                  )}
+                                </div>
+
+                                <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">ALASAN WASTE</label>
+                                  <input type="text" placeholder="Alasan Waste" value={row.alasanPemusnahan} onChange={(e) => updateRow(station, row.id, { alasanPemusnahan: e.target.value.toUpperCase() })} className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-dim" />
+                                </div>
+
+                                <div className="md:col-span-2 rounded-lg border-2 border-border bg-[#111] px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">METODE MUSNAH</label>
+                                  <select value={row.metodePemusnahan} onChange={(e) => updateRow(station, row.id, { metodePemusnahan: e.target.value })} className="w-full bg-transparent text-sm text-text-primary outline-none">{METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+                                </div>
+
+                                <div className="md:col-span-2 rounded-lg border border-border bg-[#111] px-3 py-2 text-xs text-text-muted">
+                                  Satuan default: <span className="font-bold text-text-primary">{row.unit || '-'}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4 border-t border-border pt-4">
+                      <button type="button" onClick={() => addRow(station)} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#333] bg-transparent py-3 text-sm font-bold text-text-muted transition hover:border-primary hover:text-primary"><Plus size={16} /> Tambah Item</button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )
+          })}
+
+          {testerMode && (
+            <section className="rounded-xl border-2 border-border bg-[#111] shadow-nb-md">
+              <button type="button" onClick={() => setTesterCollapsed((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+                <div>
+                  <h2 className="text-sm font-black text-text-primary">Tester Checklist</h2>
+                  <p className="text-[11px] text-text-muted">Default normal, edit kalo ada issue aja.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-black text-warning">{testerIssueCount} issue</span>
+                  <ChevronDown size={16} className={`text-text-muted transition-transform ${testerCollapsed ? '' : 'rotate-180'}`} />
+                </div>
+              </button>
+              {!testerCollapsed && (
+                <div className="border-t border-border px-4 pb-4 pt-3">
+                  <div className="space-y-2">{TESTER_ITEMS.map((item) => <label key={item.name} className="flex items-center justify-between rounded-lg border border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"><div><p className="font-bold">{item.name}</p><p className="text-[11px] text-text-muted">{item.station}</p></div><input type="checkbox" checked={testerChecks[item.name] ?? true} onChange={(e) => setTesterChecks((prev) => ({ ...prev, [item.name]: e.target.checked }))} /></label>)}</div>
+                </div>
+              )}
+            </section>
+          )}
+
+          <button type="button" onClick={() => {
+            if (!hasSelectedStations && !testerMode) { toast.warning('Belum ada data', 'Pilih station atau aktifin tester mode.'); return }
+            if (hasSelectedStations && totalValidItems === 0) { toast.warning('Belum ada item', 'Isi minimal 1 item dulu.'); return }
+            // Validate qty > 0 and alasan filled for all valid items
+            if (hasSelectedStations) {
+              for (const station of selectedStations) {
+                for (const row of rowsByStation[station]) {
+                  if (row.namaProduk.trim() === '') continue
+                  if (row.jumlahProduk <= 0) { toast.error('Eh, ada yang kurang', `Qty belum diisi di item "${row.namaProduk}" (${station}).`); return }
+                  if (!row.alasanPemusnahan.trim()) { toast.error('Eh, ada yang kurang', `Alasan waste belum diisi di item "${row.namaProduk}" (${station}).`); return }
+                }
+              }
+            }
+            setStep('preview')
+          }} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-warning py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg">Cek & Preview <ChevronRight size={16} /></button>
+        </section>
+      )}
+
+      {step === 'preview' && (
+        <section className="space-y-4">
+          <div className="rounded-xl border-2 border-border bg-[#111] px-4 py-3 shadow-nb-md">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
+              <span>Tanggal: <strong className="text-text-primary">{businessDate}</strong></span>
+              <span>Shift: <strong className="text-text-primary">{shift}</strong></span>
+              <span>Station: <strong className="text-text-primary">{testerMode ? 'TESTER' : selectedStations.join(', ')}</strong></span>
+              <span>QC: <strong className="text-text-primary">{qcName || '-'}</strong></span>
+              <span>Manager: <strong className="text-text-primary">{managerName || '-'}</strong></span>
+              {pasteMode && <span>Waktu pemusnahan: <strong className="text-text-primary">{parsedPaste.destructionTime || '-'}</strong></span>}
+              {pasteMode && <span>Kode lot: <strong className="text-text-primary">{parsedPaste.lotCode || '-'}</strong></span>}
+            </div>
+          </div>
+
+          {hasSelectedStations && selectedStations.map((station) => {
+            const stationRows = rowsByStation[station].filter((r) => r.namaProduk.trim() !== '')
+            if (!stationRows.length) return null
+            return (
+              <div key={station} className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
+                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-black text-text-primary">{station}</h3><span className="text-xs text-text-muted">{stationRows.length} item</span></div>
+                <div className="mb-3 flex flex-wrap gap-2">{stationRows.map((row, idx) => <span key={idx} className="rounded-md border border-border bg-[#0d0d0d] px-2 py-1 text-[11px] text-text-muted">{row.namaProduk} <strong className="text-text-primary">×{row.jumlahProduk}</strong> {row.unit}</span>)}</div>
+                <MultiFileUpload files={filesByStation[station] || []} onChange={(f) => setFilesByStation((prev) => ({ ...prev, [station]: f }))} />
+              </div>
+            )
+          })}
+
+          {testerMode && (
+            <div className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md"><h3 className="mb-3 text-sm font-black text-text-primary">Checklist Tester</h3><div className="space-y-2">{TESTER_ITEMS.map((item) => <div key={item.name} className="rounded-lg border border-border bg-[#0d0d0d] px-3 py-2 text-xs text-text-muted"><div className="mb-1 font-bold text-text-primary">{item.name}</div><div>Status: <span className={testerChecks[item.name] ?? true ? 'text-success' : 'text-warning'}>{testerChecks[item.name] ?? true ? 'OK' : 'Kendala'}</span></div></div>)}</div></div>
+          )}
+
+          <button type="button" onClick={handleSubmit} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-success py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg disabled:opacity-50">{loading ? <ButtonLoadingSpinner /> : null}{loading ? 'Nyimpen...' : `Kirim ${testerMode ? 'Tester' : `${selectedStations.length} Station`}`}</button>
+        </section>
+      )}
+
+      {step === 'success' && (
+        <section className="rounded-xl border-2 border-success/30 bg-success/10 p-6 text-center shadow-nb-md"><div className="mb-3 flex justify-center"><CheckCircle2 size={48} className="text-success" /></div><h2 className="mb-2 text-xl font-black text-success">Mantap, Tersimpan!</h2><p className="mb-5 text-sm text-text-primary">{successMessage}</p><div className="mb-6 space-y-1 text-xs text-text-muted"><p>Tanggal: {businessDate}</p><p>Shift: {shift}</p><p>Station: {testerMode ? 'TESTER' : selectedStations.join(', ')}</p><p>QC: {qcName || '-'}</p><p>Manager: {managerName || '-'}</p></div><button type="button" onClick={resetForm} className="rounded-lg border-2 border-[#000] bg-warning px-6 py-3 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg">Shift Baru</button></section>
+      )}
+    </div>
+  )
+}
+
+
+
+function PasteIssues({ title, issues, tone }: { title: string; issues: PasteIssue[]; tone: 'danger' | 'warning' }) {
+  const toneClass = tone === 'danger' ? 'border-danger/30 bg-danger/10 text-danger' : 'border-warning/30 bg-warning/10 text-warning'
+  return (
+    <div className={`rounded-lg border px-3 py-3 text-xs ${toneClass}`}>
+      <p className="mb-1 font-black">{title}</p>
+      <ul className="list-disc space-y-1 pl-4">
+        {issues.map((issue, index) => <li key={`${issue.line}-${index}`}>{issue.line > 0 ? `Baris ${issue.line}: ` : ''}{issue.message}</li>)}
+      </ul>
+    </div>
+  )
+}
+
+function stepLabel(step: Step, pasteMode: boolean) {
+  if (pasteMode) {
+    switch (step) {
+      case 'paste': return '1/5 • Paste'
+      case 'config': return '2/5 • Config'
+      case 'items': return '3/5 • Item'
+      case 'preview': return '4/5 • Preview'
+      case 'success': return '5/5 • Done'
+    }
+  }
+  switch (step) {
+    case 'paste': return '1/4 • Paste'
+    case 'config': return '1/4 • Config'
+    case 'items': return '2/4 • Item'
+    case 'preview': return '3/4 • Preview'
+    case 'success': return '4/4 • Done'
+  }
+}

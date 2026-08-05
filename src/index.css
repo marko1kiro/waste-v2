@@ -1,0 +1,351 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      Roboto, sans-serif;
+    background-color: #0a0a0a;
+    background-image:
+      linear-gradient(135deg, rgba(79, 209, 255, 0.08) 0%, transparent 40%),
+      linear-gradient(225deg, rgba(255, 229, 0, 0.06) 0%, transparent 40%),
+      radial-gradient(ellipse at 15% 85%, rgba(79, 209, 255, 0.07) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 15%, rgba(255, 229, 0, 0.05) 0%, transparent 45%);
+    background-attachment: fixed;
+    color: #e5e7eb;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #111;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  /* Custom select styling */
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 14px;
+    padding-right: 2.25rem;
+  }
+
+  select option {
+    background-color: #111;
+    color: #e5e7eb;
+    padding: 8px 12px;
+  }
+
+  select:focus {
+    border-color: #FFE500;
+  }
+}
+
+/* ─── Login Page ──────────────────────────────────────── */
+
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #FFF8E1 0%, #F3E5F5 50%, #E8DEF8 100%);
+  font-family: 'Nunito', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* Sparkles */
+.login-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sparkle {
+  position: absolute;
+  font-size: 14px;
+  color: #B388FF;
+  animation: twinkle 2s ease-in-out infinite;
+}
+
+.s1 { top: 8%; left: 15%; animation-delay: 0s; }
+.s2 { top: 12%; right: 20%; animation-delay: 0.5s; font-size: 10px; color: #FFD54F; }
+.s3 { top: 25%; left: 8%; animation-delay: 1s; font-size: 18px; }
+.s4 { top: 5%; right: 10%; animation-delay: 1.5s; color: #FFD54F; }
+.s5 { top: 18%; left: 45%; animation-delay: 0.8s; font-size: 12px; }
+.s6 { bottom: 12%; left: 12%; animation-delay: 0.3s; color: #FFD54F; font-size: 16px; }
+.s7 { bottom: 8%; right: 15%; animation-delay: 1.2s; font-size: 12px; }
+.s8 { bottom: 18%; left: 40%; animation-delay: 0.6s; color: #FFD54F; font-size: 10px; }
+.s9 { bottom: 5%; right: 30%; animation-delay: 1.8s; font-size: 14px; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* Card */
+.login-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 30px;
+  padding: 40px 32px 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  animation: cardIn 0.6s ease-out both;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Logo + Cloud wrapper */
+.login-logo-area {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+/* Kawaii cloud */
+.cloud-wrap {
+  position: absolute;
+  top: -4px;
+  left: calc(50% - 100px);
+  animation: cloudFloat 4s ease-in-out infinite;
+}
+
+.kawaii-cloud {
+  width: 50px;
+  height: 25px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06));
+}
+
+@keyframes cloudFloat {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(8px); }
+}
+
+/* Logo */
+.login-logo {
+  animation: logoFloat 3.5s ease-in-out infinite;
+}
+
+.login-logo img {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.12));
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Heading */
+.login-heading {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin-bottom: 24px;
+}
+
+/* Form */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.input-wrap {
+  display: flex;
+  align-items: center;
+  border-radius: 50px;
+  padding: 0 20px;
+  height: 52px;
+  transition: box-shadow 0.3s ease;
+}
+
+.input-wrap:focus-within {
+  box-shadow: 0 0 0 3px rgba(179, 136, 255, 0.3);
+}
+
+.input-dark,
+.input-light {
+  background: #fff;
+  border: 1.5px solid #E0E0E0;
+}
+
+.input-dark input,
+.input-light input {
+  color: #1a1a1a;
+}
+
+.input-dark input::placeholder,
+.input-light input::placeholder {
+  color: #999;
+}
+
+.input-icon {
+  font-size: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.input-wrap input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.toggle-pw {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.toggle-pw:hover {
+  opacity: 1;
+}
+
+/* Error */
+.login-error {
+  background: #FFF0F0;
+  border: 1px solid #FFCDD2;
+  color: #C62828;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Button */
+.login-btn {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 50px;
+  background: linear-gradient(135deg, #7C4DFF, #B388FF);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: 'Nunito', system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.3s;
+  box-shadow: 0 4px 14px rgba(124, 77, 255, 0.3);
+  margin-top: 4px;
+}
+
+.login-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(124, 77, 255, 0.4);
+}
+
+.login-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.2);
+}
+
+.login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.login-footer {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13px;
+  color: #888;
+  font-weight: 600;
+}
+
+.login-footer strong {
+  color: #1a1a1a;
+}
+
+/* ─── Profile Page ────────────────────────────────────── */
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #B388FF;
+  box-shadow: 0 4px 16px rgba(179, 136, 255, 0.25);
+  animation: logoFloat 3.5s ease-in-out infinite;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Responsive */
+@media (max-width: 440px) {
+  .login-card {
+    padding: 32px 24px 28px;
+    border-radius: 24px;
+  }
+
+  .login-logo img {
+    width: 130px;
+    height: 130px;
+  }
+
+  .login-heading {
+    font-size: 22px;
+  }
+
+  .cloud-wrap {
+    left: calc(50% - 85px);
+  }
+
+  .kawaii-cloud {
+    width: 42px;
+    height: 21px;
+  }
+}
