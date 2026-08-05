@@ -1,0 +1,22 @@
+{
+  "name": "AWAS",
+  "short_name": "AWAS",
+  "description": "Aplikasi Waste Always Simple — PT. Pesta Pora Abadi",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF8E1",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icons/logo-192.webp",
+      "sizes": "192x192",
+      "type": "image/webp"
+    },
+    {
+      "src": "/icons/logo-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp"
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+const TOKEN_KEY = 'waste_app_token'
+const USER_KEY = 'waste_app_user'
+const LOGIN_TIME_KEY = 'waste_app_login_time'
+const DEFAULT_TIMEOUT_MS = 30_000
+
+export interface AuthUser {
+  username: string
+  display_name: string
+  role: 'super_admin' | 'admin_store'
+}
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+function setUser(user: AuthUser): void {
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
+}
+
+function getUser(): AuthUser | null {
+  const raw = localStorage.getItem(USER_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as AuthUser
+  } catch {
+    return null
+  }
+}
+
+function setLoginTime(time: number): void {
+  localStorage.setItem(LOGIN_TIME_KEY, String(time))
+}
+
+function getLoginTime(): number | null {
+  const raw = localStorage.getItem(LOGIN_TIME_KEY)
+  if (!raw) return null
+  return parseInt(raw, 10)
+}
+
+function clearAuth(): void {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(USER_KEY)
+  localStorage.removeItem(LOGIN_TIME_KEY)
+}
+
+async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken()
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
+
+    if (res.status === 401) {
+      const contentType = res.headers.get('content-type') || ''
+      const errorBody = contentType.includes('application/json')
+        ? await res.json().catch(() => ({ error: 'Unauthorized' }))
+        : { error: await res.text().catch(() => 'Unauthorized') }
+      const apiMessage = errorBody.error || errorBody.message || 'Unauthorized'
+
+      // If token existed, this is a session expiry — clear auth and redirect
+      if (token) {
+        clearAuth()
+        window.dispatchEvent(new CustomEvent('auth:session-expired'))
+        throw new Error('Sesi abis nih. Yuk login lagi.')
+      }
+
+      // No token (e.g. login attempt) — just throw the API error message
+      throw new Error(apiMessage)
+    }
+
+    if (!res.ok) {
+      const contentType = res.headers.get('content-type') || ''
+      const errorBody = contentType.includes('application/json')
+        ? await res.json().catch(() => ({ error: 'Request failed' }))
+        : { error: await res.text().catch(() => 'Request failed') }
+      throw new Error(errorBody.error || errorBody.message || `HTTP ${res.status}`)
+    }
+
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('application/json')) {
+      throw new Error('Response API ga valid.')
+    }
+
+    return res.json() as Promise<T>
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Kelamaan nih. Coba lagi ya.')
+    }
+    if (err instanceof TypeError) {
+      throw new Error('Ga bisa konek ke server. Cek koneksi dulu ya.')
+    }
+    throw err
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
+export const apiClient = {
+  getToken,
+  setToken,
+  setUser,
+  getUser,
+  setLoginTime,
+  getLoginTime,
+  clearAuth,
+  fetch: apiFetch,
+}
