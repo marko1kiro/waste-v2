@@ -361,4 +361,4 @@ dayData = {
 }
 ```
 
-PDF hanya bisa di-generate jika **MIDNIGHT shift sudah Done** (dicek via `GET /api/shift-status?date=...`).
+PDF dapat dibuat untuk tanggal kalender valid. Backend mengecek `daily_records` secara langsung: jika record `MIDNIGHT` belum `done = true`, PDF dibuat on-demand tanpa Google Drive. Jika sudah selesai, backend mencari PDF dengan filename kanonis di folder backup Google Drive; PDF baru hanya dikirim setelah berhasil diunggah ke Drive.

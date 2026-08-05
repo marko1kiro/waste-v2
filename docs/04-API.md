@@ -278,23 +278,16 @@ Returns the file directly with correct Content-Type. No JSON.
 ## 7. PDF Generation
 
 ### GET `/api/generate-pdf`
-Generate dan download PDF report untuk suatu business date.
-Hanya bisa dipanggil jika MIDNIGHT shift sudah Done.
+Generate dan download PDF report untuk suatu business date. Untuk tanggal yang MIDNIGHT-nya belum selesai (`daily_records.done` bukan `true`), endpoint tetap membuat PDF on-demand seperti biasa dan tidak menghubungi Google Drive. Untuk tanggal yang MIDNIGHT-nya selesai, PDF wajib dibackup ke folder Google Drive sebelum didownload: endpoint mengirim PDF Drive yang sudah ada dengan nama kanonis, atau membuat dan mengunggahnya sekali terlebih dahulu.
 
 **Query Params:**
 | Param | Tipe | Required | Deskripsi |
 |-------|------|----------|-----------|
 | `date` | string | ✅ | Business date `YYYY-MM-DD` |
 
-**Response 403:**
-```json
-{
-  "success": false,
-  "message": "PDF belum bisa di-generate. Shift MIDNIGHT belum di-submit."
-}
-```
-
 **Response 200:**
 Returns PDF file as download.
+
+**Response 503:** Untuk tanggal dengan MIDNIGHT selesai, Google Drive belum dikonfigurasi, tidak tersedia, atau backup sedang dibuat oleh request lain. PDF baru tidak akan dikirim sebelum upload Drive berhasil; retry setelah beberapa saat.
 
 
