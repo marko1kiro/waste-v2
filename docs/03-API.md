@@ -306,7 +306,7 @@ Tanpa filter tambahan, endpoint mengembalikan data tanggal tersebut yang dikelom
 
 ## 7. Generate PDF
 
-`GET /api/generate-pdf?date=YYYY-MM-DD` menerima JWT atau API key Bearer. PDF dapat dibuat untuk setiap tanggal kalender valid, tanpa syarat submit shift `MIDNIGHT`; tanggal tanpa data tetap menghasilkan PDF valid.
+`GET /api/generate-pdf?date=YYYY-MM-DD` menerima JWT atau API key Bearer. PDF tetap dapat dibuat untuk setiap tanggal kalender valid, termasuk tanggal tanpa data. Bila record `daily_records` untuk shift `MIDNIGHT` tanggal tersebut belum `done = true`, endpoint mempertahankan generate/download on-demand dan tidak menghubungi Google Drive. Bila `MIDNIGHT` sudah selesai, endpoint mencari filename PDF kanonis yang tepat di folder backup Google Drive. Jika sudah ada, file itu dikirim lewat backend; jika belum ada, endpoint membuat PDF, wajib mengunggahnya sekali ke Drive, baru mengirimkannya.
 
 ```bash
 curl "https://www.gacoanku.my.id/api/generate-pdf?date=2026-07-28" \
@@ -322,7 +322,7 @@ Content-Disposition: attachment; filename="BA Waste {store_code} - DDMMYYYY.pdf"
 Cache-Control: private, no-store
 ```
 
-Dokumentasi serta paraf yang direferensikan pada data adalah aset PDF wajib. Jika salah satu aset wajib tidak dapat dibaca dari private Blob, response `502` dengan `{"error":"Required PDF image asset unavailable"}`; tidak ada PDF parsial. Link anotasi gambar dalam PDF memakai signed access token yang berlaku 10 menit; setelah expired, generate ulang PDF. Error lain: `400` date invalid, `401` credential invalid, `405` method invalid, `500` server error.
+Dokumentasi serta paraf yang direferensikan pada data adalah aset PDF wajib. Jika salah satu aset wajib tidak dapat dibaca dari private Blob, response `502` dengan `{"error":"Required PDF image asset unavailable"}`; tidak ada PDF parsial. Link anotasi gambar dalam PDF memakai signed access token yang berlaku 10 menit; setelah expired, generate ulang PDF. Untuk tanggal dengan `MIDNIGHT` selesai, konfigurasi atau layanan Drive yang gagal menghasilkan `503`; endpoint tidak akan mengirim PDF baru yang belum berhasil dibackup. Error lain: `400` date invalid, `401` credential invalid, `405` method invalid, `500` server error.
 
 ## 8. HTTP Status and Error Format
 
@@ -341,6 +341,7 @@ Error umumnya berbentuk:
 | `409` | Duplicate submission, duplicate key name, atau batas 5 key aktif |
 | `405` | HTTP method tidak didukung |
 | `500` | Kesalahan server; retry dengan backoff dan jangan menggandakan submit tanpa mengecek hasil |
+| `503` | Backup Drive wajib untuk tanggal dengan MIDNIGHT selesai belum dapat dilakukan atau sedang diproses; retry setelah beberapa saat |
 
 ## 9. Integration Checklist
 

@@ -16,6 +16,7 @@
     "db:init": "tsx scripts/seed.ts",
     "hash-password": "tsx scripts/hash-password.ts",
     "check:generate-pdf": "tsx scripts/check-generate-pdf.ts",
+    "check:google-drive-backup": "tsx scripts/check-google-drive-backup.ts",
     "check:submission-locks": "tsx scripts/check-submission-locks.ts",
     "check:paste-parser": "tsx scripts/check-paste-waste-parser.ts"
   },

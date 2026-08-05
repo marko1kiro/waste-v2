@@ -41,5 +41,8 @@ const generatePdfSource = await readFile(new URL('../api/generate-pdf.ts', impor
 const rendererSource = await readFile(new URL('../shared/pdf-renderer.ts', import.meta.url), 'utf8')
 assert.ok(!generatePdfSource.includes('/logo.webp'))
 assert.ok(!rendererSource.includes('input.logo'))
+assert.ok(generatePdfSource.includes('midnightComplete'))
+assert.ok(generatePdfSource.includes('findGoogleDrivePdf(filename)'))
+assert.ok(generatePdfSource.includes('uploadGoogleDrivePdf(filename'))
 
 console.log('generate-pdf checks passed')
