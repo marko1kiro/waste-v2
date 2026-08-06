@@ -69,20 +69,23 @@ async function loadAssets(urls: string[], optional = false): Promise<Map<string,
   return assets
 }
 
-function setPdfHeaders(res: VercelResponse, filename: string, contentLength?: string) {
+type PdfResponseSource = 'google-drive' | 'generated-drive' | 'generated-on-demand'
+
+function setPdfHeaders(res: VercelResponse, filename: string, contentLength: string | undefined, source: PdfResponseSource) {
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  res.setHeader('X-AWAS-PDF-Source', source)
   if (contentLength) res.setHeader('Content-Length', contentLength)
   res.setHeader('Cache-Control', 'private, no-store')
 }
 
-function sendPdf(res: VercelResponse, filename: string, pdf: Buffer | Uint8Array) {
-  setPdfHeaders(res, filename, String(pdf.byteLength))
+function sendPdf(res: VercelResponse, filename: string, pdf: Buffer | Uint8Array, source: Exclude<PdfResponseSource, 'google-drive'>) {
+  setPdfHeaders(res, filename, String(pdf.byteLength), source)
   return res.status(200).send(Buffer.from(pdf))
 }
 
 function streamGoogleDrivePdf(res: VercelResponse, filename: string, response: Response) {
-  setPdfHeaders(res, filename, response.headers.get('content-length') || undefined)
+  setPdfHeaders(res, filename, response.headers.get('content-length') || undefined, 'google-drive')
   res.status(200)
   const stream = Readable.fromWeb(response.body as import('stream/web').ReadableStream)
   stream.on('error', (error) => {
@@ -235,7 +238,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return sendPdf(res, filename, pdf)
+    return sendPdf(res, filename, pdf, midnightComplete ? 'generated-drive' : 'generated-on-demand')
   } catch (error) {
     if (driveGenerationClaimed) await releaseDriveGenerationClaim(date).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
     console.error('[generate-pdf] Error:', error)

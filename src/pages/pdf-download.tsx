@@ -7,6 +7,58 @@ import { FileDown, FolderOpen, Download, Archive, ChevronDown } from 'lucide-rea
 import { toast } from '@/hooks/use-toast'
 import type { DashboardData } from '@/lib/types'
 
+type PdfProgressPhase = {
+  afterMs: number
+  target: number
+  label: string
+}
+
+// The generate endpoint returns one response after its server-side pipeline is done.
+// These weighted phases keep the UI moving through that same pipeline without
+// pretending an exact backend percentage; the final download bytes are measured.
+const PDF_PROGRESS_PHASES: PdfProgressPhase[] = [
+  { afterMs: 0, target: 7, label: 'Menghubungkan ke server PDF...' },
+  { afterMs: 900, target: 14, label: 'Memvalidasi tanggal dan akses...' },
+  { afterMs: 2200, target: 23, label: 'Memeriksa status shift MIDNIGHT...' },
+  { afterMs: 4000, target: 34, label: 'Mengambil data waste dan konfigurasi...' },
+  { afterMs: 6500, target: 46, label: 'Memeriksa arsip PDF di Google Drive...' },
+  { afterMs: 9500, target: 59, label: 'Memuat dokumentasi dan tanda tangan...' },
+  { afterMs: 14000, target: 72, label: 'Menyusun halaman laporan PDF...' },
+  { afterMs: 20000, target: 82, label: 'Mengoptimalkan dokumen PDF...' },
+  { afterMs: 28000, target: 89, label: 'Mengamankan salinan PDF ke Google Drive...' },
+  { afterMs: 40000, target: 94, label: 'Menunggu proses backend selesai...' },
+]
+
+const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+
+function getReadyLabel(source: string | null): string {
+  if (source === 'google-drive') return 'PDF ditemukan di Google Drive. Mengunduh file...'
+  if (source === 'generated-drive') return 'PDF selesai dibuat dan diamankan. Mengunduh file...'
+  return 'PDF selesai dibuat. Mengunduh file...'
+}
+
+async function readPdfWithProgress(response: Response, onProgress: (percentage: number) => void): Promise<Blob> {
+  if (!response.body) return response.blob()
+  const reader = response.body.getReader()
+  const contentLength = Number(response.headers.get('content-length'))
+  const chunks: ArrayBuffer[] = []
+  let received = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const chunk = new ArrayBuffer(value.byteLength)
+    new Uint8Array(chunk).set(value)
+    chunks.push(chunk)
+    received += value.byteLength
+    if (Number.isFinite(contentLength) && contentLength > 0) {
+      onProgress(95 + Math.min(4, Math.floor((received / contentLength) * 4)))
+    }
+  }
+
+  return new Blob(chunks, { type: response.headers.get('content-type') || 'application/pdf' })
+}
+
 export default function PdfDownload() {
   const [activeTab, setActiveTab] = useState<'harian' | 'bulanan'>('harian')
   const [selectedDate, setSelectedDate] = useState('')
@@ -25,24 +77,54 @@ export default function PdfDownload() {
   async function handleGeneratePDF() {
     if (!currentDate || generating) return
     setGenerating(true)
-    setProgress({ current: 1, total: 2, label: 'Membuat PDF...' })
+    const startedAt = Date.now()
+    let visualPercentage = 3
+    let currentLabel = PDF_PROGRESS_PHASES[0].label
+    const updateProgress = (percentage: number, label = currentLabel) => {
+      visualPercentage = Math.max(visualPercentage, Math.min(100, Math.round(percentage)))
+      currentLabel = label
+      setProgress({ current: visualPercentage, total: 100, label })
+    }
+    updateProgress(visualPercentage)
+
+    const progressTimer = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      const phase = [...PDF_PROGRESS_PHASES].reverse().find((candidate) => elapsed >= candidate.afterMs) || PDF_PROGRESS_PHASES[0]
+      const distance = phase.target - visualPercentage
+      updateProgress(distance > 0 ? visualPercentage + Math.max(1, Math.ceil(distance * 0.18)) : visualPercentage, phase.label)
+    }, 400)
+
     try {
       const response = await fetch(`/api/generate-pdf?date=${currentDate}`, { headers: { Authorization: `Bearer ${apiClient.getToken() || ''}` } })
+      window.clearInterval(progressTimer)
       if (!response.ok) {
         const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
         throw new Error(body.error || body.message || `HTTP ${response.status}`)
       }
+
+      const readyLabel = getReadyLabel(response.headers.get('x-awas-pdf-source'))
+      const transitionStart = visualPercentage
+      const transitionSteps = 8
+      for (let step = 1; step <= transitionSteps; step += 1) {
+        updateProgress(transitionStart + ((95 - transitionStart) * step) / transitionSteps, readyLabel)
+        await wait(55)
+      }
+
       const filename = response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/)?.[1] || 'BA Waste.pdf'
-      const url = URL.createObjectURL(await response.blob())
+      const pdfBlob = await readPdfWithProgress(response, (percentage) => updateProgress(percentage, readyLabel))
+      const url = URL.createObjectURL(pdfBlob)
       const link = document.createElement('a')
       link.href = url
       link.download = filename
       link.click()
-      URL.revokeObjectURL(url)
-      setProgress({ current: 2, total: 2, label: 'Selesai!' })
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      updateProgress(100, 'Selesai! PDF siap dibuka.')
+      await wait(650)
     } catch (error) {
+      window.clearInterval(progressTimer)
       toast.error('Gagal download PDF', error instanceof Error ? error.message : 'Unknown error')
     } finally {
+      window.clearInterval(progressTimer)
       setGenerating(false)
       setProgress(null)
     }
