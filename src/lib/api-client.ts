@@ -83,7 +83,9 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
       if (token) {
         clearAuth()
         window.dispatchEvent(new CustomEvent('auth:session-expired'))
-        throw new Error('Sesi abis nih. Yuk login lagi.')
+        const error = new Error('Sesi abis nih. Yuk login lagi.') as Error & { status?: number }
+        error.status = 401
+        throw error
       }
 
       // No token (e.g. login attempt) — just throw the API error message
@@ -95,7 +97,9 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
       const errorBody = contentType.includes('application/json')
         ? await res.json().catch(() => ({ error: 'Request failed' }))
         : { error: await res.text().catch(() => 'Request failed') }
-      throw new Error(errorBody.error || errorBody.message || `HTTP ${res.status}`)
+      const error = new Error(errorBody.error || errorBody.message || `HTTP ${res.status}`) as Error & { status?: number }
+      error.status = res.status
+      throw error
     }
 
     const contentType = res.headers.get('content-type') || ''

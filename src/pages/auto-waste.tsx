@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
@@ -12,6 +12,7 @@ import MultiFileUpload from '@/components/ui/multi-file-upload'
 import { getBusinessDateWIB, getCurrentShiftWIB, formatTimeWIB, SHIFTS } from '@shared/timezone'
 import { STATIONS, METHODS } from '@shared/schema'
 import { parsePasteWaste, type PasteIssue } from '@/lib/paste-waste-parser'
+import { canApplyRestore, deleteDraft, filesToPhotos, getDraft, listQueue, photosToFiles, queueSnapshot, retryQueueItem, saveDraft, shouldUseDirectSubmitFallback, syncQueue, type QueueItem } from '@/lib/offline-waste'
 import { TESTER_ITEMS } from '@shared/tester'
 import { STATION_UI } from '@shared/station-ui'
 import type { Station } from '@shared/schema'
@@ -22,7 +23,6 @@ import {
   Plus,
   Trash2,
   ArrowLeft,
-  AlertTriangle,
 } from 'lucide-react'
 
 interface StationItem {
@@ -68,10 +68,6 @@ type DraftPayload = {
   parsedDestructionTime?: string
 }
 
-const MANUAL_DRAFT_KEY = 'waste_app_draft_v2'
-const PASTE_DRAFT_KEY = 'waste_app_paste_draft_v1'
-const FRESH_DRAFT_MS = 60_000
-
 function uid() {
   return Math.random().toString(36).slice(2, 10)
 }
@@ -105,9 +101,14 @@ export default function AutoWaste() {
 }
 
 function WasteForm({ pasteMode }: { pasteMode: boolean }) {
-  useAuth()
+  const { user, isAuthenticated } = useAuth()
+  const restoredRef = useRef(false)
+  const draftRevision = useRef(0)
+  const markDirty = () => { draftRevision.current += 1 }
+  const [restoreDone, setRestoreDone] = useState(false)
+  const [persistenceStatus, setPersistenceStatus] = useState('')
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([])
 
-  const draftKey = pasteMode ? PASTE_DRAFT_KEY : MANUAL_DRAFT_KEY
   const [step, setStep] = useState<Step>(pasteMode ? 'paste' : 'config')
   const [businessDate, setBusinessDate] = useState(getBusinessDateWIB())
   const [shift, setShift] = useState<(typeof SHIFTS)[number]>(getCurrentShiftWIB())
@@ -129,7 +130,6 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<ProgressState | null>(null)
   const [successMessage, setSuccessMessage] = useState('')
-  const [draftFound, setDraftFound] = useState<DraftPayload | null>(null)
   const [filesByStation, setFilesByStation] = useState<Record<string, File[]>>({})
   const [qcName, setQcName] = useState('')
   const [managerName, setManagerName] = useState('')
@@ -157,49 +157,38 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const catalogError = STATIONS.some((station) => stationQueries[station].error)
   const personnelMissing = qcList.length === 0 || managerList.length === 0
 
+  const form: 'manual' | 'paste' = pasteMode ? 'paste' : 'manual'
+  const payload: DraftPayload = { businessDate, shift, selectedStations, rowsByStation, savedAt: Date.now(), qcName, managerName, testerMode, testerChecks, pasteRaw: pasteMode ? rawPaste : undefined, parsedDestructionTime: pasteMode ? parsedPaste.destructionTime || undefined : undefined }
   useEffect(() => {
-    const raw = localStorage.getItem(draftKey)
-    if (!raw) return
-    try {
-      const draft = JSON.parse(raw) as DraftPayload
-      const age = Date.now() - draft.savedAt
-      if (age < FRESH_DRAFT_MS) {
-        setBusinessDate(draft.businessDate)
-        setShift(draft.shift)
-        setSelectedStations(draft.selectedStations)
-        setExpandedStation(draft.selectedStations[0] || 'NOODLE')
-        setRowsByStation((prev) => ({ ...prev, ...draft.rowsByStation }))
-        setQcName(draft.qcName || '')
-        setManagerName(draft.managerName || '')
-        setTesterMode(Boolean(draft.testerMode))
-        setTesterChecks(draft.testerChecks || {})
-        if (pasteMode) setRawPaste(draft.pasteRaw || '')
-        toast.info('Draft ketemu nih', 'Lanjutin yang kemarin ya.')
-      } else {
-        setDraftFound(draft)
-      }
-    } catch {}
-  }, [draftKey, pasteMode])
-
+    const dirty = () => markDirty()
+    window.addEventListener('input', dirty, true)
+    window.addEventListener('change', dirty, true)
+    return () => { window.removeEventListener('input', dirty, true); window.removeEventListener('change', dirty, true) }
+  }, [])
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const payload: DraftPayload = {
-        businessDate,
-        shift,
-        selectedStations,
-        rowsByStation,
-        savedAt: Date.now(),
-        qcName,
-        managerName,
-        testerMode,
-        testerChecks,
-        pasteRaw: pasteMode ? rawPaste : undefined,
-        parsedDestructionTime: pasteMode ? parsedPaste.destructionTime || undefined : undefined,
-      }
-      localStorage.setItem(draftKey, JSON.stringify(payload))
-    }, 800)
-    return () => clearTimeout(timer)
-  }, [businessDate, shift, selectedStations, rowsByStation, qcName, managerName, testerMode, testerChecks, pasteMode, rawPaste, parsedPaste.destructionTime, draftKey])
+    if (!user || restoredRef.current) return
+    restoredRef.current = true
+    const revisionAtRequest = draftRevision.current
+    void getDraft<DraftPayload>(user.username, form).then((draft) => {
+      if (!draft || !canApplyRestore(revisionAtRequest, draftRevision.current)) return
+      draftRevision.current = draft.revision
+      const value = draft.value
+      setBusinessDate(value.businessDate); setShift(value.shift); setSelectedStations(value.selectedStations); setExpandedStation(value.selectedStations[0] || 'NOODLE'); setRowsByStation((prev) => ({ ...prev, ...value.rowsByStation })); setQcName(value.qcName || ''); setManagerName(value.managerName || ''); setTesterMode(Boolean(value.testerMode)); setTesterChecks(value.testerChecks || {}); if (pasteMode) setRawPaste(value.pasteRaw || ''); setFilesByStation(Object.fromEntries(Object.entries(draft.photos).map(([station, photos]) => [station, photosToFiles(photos)]))); setPersistenceStatus('Draft dipulihkan.')
+    }).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.')).finally(() => setRestoreDone(true))
+  }, [form, pasteMode, user])
+  useEffect(() => {
+    if (!user || !restoreDone) return
+    draftRevision.current += 1
+    setPersistenceStatus('Menyimpan draft...')
+    const timer = window.setTimeout(() => { const revision = draftRevision.current + 1; draftRevision.current = revision; void saveDraft({ key: `${user.username}:${form}`, userId: user.username, form, value: payload, photos: Object.fromEntries(Object.entries(filesByStation).map(([station, files]) => [station, filesToPhotos(files)])), updatedAt: Date.now(), revision, schemaVersion: 1 }).then(() => setPersistenceStatus('Draft tersimpan.')).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.')) }, 800)
+    return () => window.clearTimeout(timer)
+  }, [businessDate, filesByStation, form, managerName, pasteMode, parsedPaste.destructionTime, qcName, rawPaste, restoreDone, rowsByStation, selectedStations, shift, testerChecks, testerMode, user])
+  useEffect(() => {
+    if (!user) return
+    const refresh = () => void listQueue(user.username).then(setQueueItems).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.'))
+    const sync = () => void syncQueue(user.username, apiClient.fetch).then(refresh).catch(() => refresh())
+    refresh(); if (isAuthenticated && navigator.onLine) sync(); window.addEventListener('online', sync); return () => window.removeEventListener('online', sync)
+  }, [isAuthenticated, user])
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -217,28 +206,6 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   }, [rowsByStation, selectedStations])
   const testerIssueCount = useMemo(() => TESTER_ITEMS.filter((item) => testerChecks[item.name] === false).length, [testerChecks])
   const hasSelectedStations = selectedStations.length > 0
-
-  function restoreDraft() {
-    if (!draftFound) return
-    setBusinessDate(draftFound.businessDate)
-    setShift(draftFound.shift)
-    setSelectedStations(draftFound.selectedStations)
-    setExpandedStation(draftFound.selectedStations[0] || 'NOODLE')
-    setRowsByStation((prev) => ({ ...prev, ...draftFound.rowsByStation }))
-    setQcName(draftFound.qcName || '')
-    setManagerName(draftFound.managerName || '')
-    setTesterMode(Boolean(draftFound.testerMode))
-    setTesterChecks(draftFound.testerChecks || {})
-    if (pasteMode) setRawPaste(draftFound.pasteRaw || '')
-    setDraftFound(null)
-    toast.info('Draft ketemu nih', 'Lanjutin yang kemarin ya.')
-  }
-
-  function discardDraft() {
-    localStorage.removeItem(draftKey)
-    setDraftFound(null)
-    toast.info('Draft dibuang')
-  }
 
   function toggleStation(station: Station) {
     setSelectedStations((prev) => {
@@ -446,13 +413,38 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       return
     }
 
+    if (!user) {
+      toast.error('Sesi tidak tersedia', 'Login ulang dulu ya.')
+      return
+    }
+    let storageUnavailable = false
+    {
+      const submission = (station: string, rows: Array<Pick<WasteRow, 'namaProduk' | 'jumlahProduk' | 'kodeProduk' | 'unit' | 'metodePemusnahan' | 'alasanPemusnahan'>>) => ({ payload: { tanggal: businessDate, kategoriInduk: station, shift, storeName: 'BEKASI KP. BULU', productList: JSON.stringify(rows.map((row) => row.namaProduk.toUpperCase())), jumlahProdukList: JSON.stringify(rows.map((row) => row.jumlahProduk)), kodeProdukList: JSON.stringify(rows.map((row) => row.kodeProduk)), unitList: JSON.stringify(rows.map((row) => row.unit)), metodePemusnahanList: JSON.stringify(rows.map((row) => row.metodePemusnahan)), alasanPemusnahanList: JSON.stringify(rows.map((row) => row.alasanPemusnahan)), jamTanggalPemusnahanList: JSON.stringify(rows.map(() => pasteMode ? parsedPaste.destructionTime || '' : formatTimeWIB())), parafQCName: qcName, parafQCUrl: selectedQC?.signature_url || '', parafManagerName: managerName, parafManagerUrl: selectedManager?.signature_url || '' }, photos: filesToPhotos(filesByStation[station] || []), uploadedUrls: [] })
+      const submissions = selectedStations.map((station) => submission(station, rowsByStation[station].filter((row) => row.namaProduk.trim() !== '')))
+      if (testerMode && testerIssueCount) submissions.push(submission('BAR', TESTER_ITEMS.filter((item) => testerChecks[item.name] === false).map((item) => ({ namaProduk: item.name, kodeProduk: '', jumlahProduk: 1, unit: 'PCS', metodePemusnahan: 'DIBUANG', alasanPemusnahan: 'TESTER' }))))
+      try {
+        const item = await queueSnapshot({ userId: user.username, form, businessDate, shift, stations: testerMode ? [...selectedStations, 'TESTER'] : selectedStations, submissions, draftRevision: draftRevision.current })
+        setQueueItems((items) => items.some((queued) => queued.id === item.id) ? items : [...items, item])
+        if (!navigator.onLine) { setPersistenceStatus('Offline: data masuk antrean.'); toast.info('Data diantrekan', 'Akan dikirim saat koneksi kembali.'); return }
+        setLoading(true); setProgress({ current: 1, total: 1, label: 'Menyinkronkan antrean...' })
+        await syncQueue(user.username, apiClient.fetch)
+        const queued = await listQueue(user.username)
+        setQueueItems(queued)
+        const current = queued.find((queuedItem) => queuedItem.id === item.id)
+        if (!current || current.state === 'completed') { setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`); setStep('success'); toast.success('Mantap', 'Data waste udah kesimpen.') }
+        else toast.info('Data diantrekan', current.lastError || 'Menunggu sinkronisasi.')
+        setLoading(false); setProgress(null); return
+      } catch { storageUnavailable = true; setPersistenceStatus('Penyimpanan lokal tidak tersedia.') }
+    }
+    if (shouldUseDirectSubmitFallback(!storageUnavailable)) await submitDirectFallback()
+  }
+
+  async function submitDirectFallback() {
     setLoading(true)
 
-    // Calculate total steps for progress
     const totalFiles = selectedStations.reduce((sum, s) => sum + (filesByStation[s]?.length || 0), 0)
     const stationCount = hasSelectedStations ? selectedStations.length : 0
     const hasTester = testerMode && testerIssueCount > 0
-    // Steps: upload files + check dup per station + submit per station + tester + finalize
     const totalSteps = totalFiles + stationCount + stationCount + (hasTester ? 1 : 0) + 1
     let currentStep = 0
     const tick = (label: string) => { currentStep++; setProgress({ current: currentStep, total: totalSteps, label }) }
@@ -555,12 +547,14 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       tick('Update status...')
       await queryClient.invalidateQueries({ queryKey: ['shift-status'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard-data'] })
-      localStorage.removeItem(draftKey)
+      if (user) await deleteDraft(user.username, form).catch(() => undefined)
       setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`)
       setStep('success')
       toast.success('Mantap', 'Data waste udah kesimpen.')
     } catch (err) {
-      toast.error('Waduh gagal submit', err instanceof Error ? err.message : 'Unknown error')
+      const status = typeof err === 'object' && err && 'status' in err ? Number(err.status) : undefined
+      if (status === 409 && user) await deleteDraft(user.username, form).catch(() => undefined)
+      toast.error('Waduh gagal submit', status === 409 ? 'Data sudah ada di server' : err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
       setProgress(null)
@@ -585,19 +579,14 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     setTesterCollapsed(true)
     setRawPaste('')
     setPasteApplyIssues([])
-    localStorage.removeItem(draftKey)
+    if (user) void deleteDraft(user.username, form).catch(() => undefined)
   }
 
   return (
-    <div className="mx-auto max-w-4xl py-2">
+    <div className="mx-auto max-w-4xl py-2" onClickCapture={markDirty} onChangeCapture={markDirty}>
       {progress && <ProgressOverlay progress={progress} />}
-
-      {draftFound && (
-        <div className="mb-4 rounded-xl border-2 border-warning/40 bg-warning/10 p-4 shadow-nb-sm">
-          <div className="mb-2 flex items-start gap-2"><AlertTriangle size={18} className="mt-0.5 text-warning" /><div><p className="text-sm font-black text-warning">Ada draft nih</p><p className="text-xs text-text-muted">Tersimpan untuk {draftFound.selectedStations.join(', ')} • {draftFound.shift}</p></div></div>
-          <div className="flex gap-2"><button type="button" onClick={restoreDraft} className="rounded-lg border-2 border-[#000] bg-warning px-4 py-2 text-xs font-black text-black shadow-nb-sm">Lanjut</button><button type="button" onClick={discardDraft} className="rounded-lg border-2 border-border bg-[#141414] px-4 py-2 text-xs font-bold text-text-muted">Buang</button></div>
-        </div>
-      )}
+      {persistenceStatus && <div role="status" aria-live="polite" className="mb-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary"><span>{persistenceStatus}</span>{persistenceStatus === 'Draft dipulihkan.' && <button type="button" onClick={() => setPersistenceStatus('')} aria-label="Tutup status draft">Tutup</button>}</div>}
+      {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning"><p className="font-black">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => void retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems)} className="rounded border border-warning px-2 py-1 font-black">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning px-2 py-1 font-black">Login</button>}</div>)}</section>}
 
       <div className="mb-5 flex items-center justify-between">
         <div>
