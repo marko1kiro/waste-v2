@@ -103,6 +103,7 @@ export default function AutoWaste() {
 function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const { user, isAuthenticated } = useAuth()
   const restoredRef = useRef(false)
+  const mountedRef = useRef(true)
   const draftRevision = useRef(0)
   const markDirty = () => { draftRevision.current += 1 }
   const [restoreDone, setRestoreDone] = useState(false)
@@ -159,6 +160,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
 
   const form: 'manual' | 'paste' = pasteMode ? 'paste' : 'manual'
   const payload: DraftPayload = { businessDate, shift, selectedStations, rowsByStation, savedAt: Date.now(), qcName, managerName, testerMode, testerChecks, pasteRaw: pasteMode ? rawPaste : undefined, parsedDestructionTime: pasteMode ? parsedPaste.destructionTime || undefined : undefined }
+  useEffect(() => () => { mountedRef.current = false }, [])
   useEffect(() => {
     const dirty = () => markDirty()
     window.addEventListener('input', dirty, true)
@@ -423,18 +425,21 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       const submissions = selectedStations.map((station) => submission(station, rowsByStation[station].filter((row) => row.namaProduk.trim() !== '')))
       if (testerMode && testerIssueCount) submissions.push(submission('BAR', TESTER_ITEMS.filter((item) => testerChecks[item.name] === false).map((item) => ({ namaProduk: item.name, kodeProduk: '', jumlahProduk: 1, unit: 'PCS', metodePemusnahan: 'DIBUANG', alasanPemusnahan: 'TESTER' }))))
       try {
+        const startedAt = Date.now()
+        setLoading(true); setProgress({ current: 0, total: 0, label: 'Memvalidasi dan menyimpan antrean...', detail: 'Menyiapkan data pengiriman.', startedAt })
         const item = await queueSnapshot({ userId: user.username, form, businessDate, shift, stations: testerMode ? [...selectedStations, 'TESTER'] : selectedStations, submissions, draftRevision: draftRevision.current })
-        setQueueItems((items) => items.some((queued) => queued.id === item.id) ? items : [...items, item])
-        if (!navigator.onLine) { setPersistenceStatus('Offline: data masuk antrean.'); toast.info('Data diantrekan', 'Akan dikirim saat koneksi kembali.'); return }
-        setLoading(true); setProgress({ current: 1, total: 1, label: 'Menyinkronkan antrean...' })
-        await syncQueue(user.username, apiClient.fetch)
+        if (mountedRef.current) setQueueItems((items) => items.some((queued) => queued.id === item.id) ? items : [...items, item])
+        if (!navigator.onLine) { if (mountedRef.current) { setLoading(false); setProgress(null); setPersistenceStatus('Offline: data masuk antrean.'); toast.info('Data diantrekan', 'Akan dikirim saat koneksi kembali.') }; return }
+        await syncQueue(user.username, apiClient.fetch, true, (event) => { if (mountedRef.current) setProgress({ current: event.completed, total: event.total, label: event.station ? `${event.phase === 'uploading' ? 'Upload foto' : event.phase === 'submitting' ? 'Mengirim data' : 'Sinkronisasi'} ${event.station}` : 'Menyinkronkan antrean...', detail: event.detail, startedAt }) })
         const queued = await listQueue(user.username)
-        setQueueItems(queued)
-        const current = queued.find((queuedItem) => queuedItem.id === item.id)
-        if (!current || current.state === 'completed') { setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`); setStep('success'); toast.success('Mantap', 'Data waste udah kesimpen.') }
-        else toast.info('Data diantrekan', current.lastError || 'Menunggu sinkronisasi.')
-        setLoading(false); setProgress(null); return
-      } catch { storageUnavailable = true; setPersistenceStatus('Penyimpanan lokal tidak tersedia.') }
+        if (mountedRef.current) {
+          setQueueItems(queued)
+          const current = queued.find((queuedItem) => queuedItem.id === item.id)
+          if (!current || current.state === 'completed') { setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`); setStep('success'); toast.success('Mantap', 'Data waste udah kesimpen.') }
+          else toast.info('Data diantrekan', current.lastError || 'Menunggu sinkronisasi.')
+        }
+        return
+      } catch { storageUnavailable = true; if (mountedRef.current) setPersistenceStatus('Penyimpanan lokal tidak tersedia.') } finally { if (mountedRef.current) { setLoading(false); setProgress(null) } }
     }
     if (shouldUseDirectSubmitFallback(!storageUnavailable)) await submitDirectFallback()
   }
@@ -447,7 +452,8 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     const hasTester = testerMode && testerIssueCount > 0
     const totalSteps = totalFiles + stationCount + stationCount + (hasTester ? 1 : 0) + 1
     let currentStep = 0
-    const tick = (label: string) => { currentStep++; setProgress({ current: currentStep, total: totalSteps, label }) }
+    const startedAt = Date.now()
+    const tick = (label: string) => { currentStep++; setProgress({ current: currentStep, total: totalSteps, label, startedAt }) }
 
     try {
       // Seluruh station dicek terlebih dahulu agar tidak ada foto yang terunggah
