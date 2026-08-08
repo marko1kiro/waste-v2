@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { formatWasteSubmitElapsed, getWasteSubmitProgress } from '@/lib/waste-submit-progress'
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg'
@@ -53,10 +55,14 @@ export interface ProgressState {
   current: number
   total: number
   label: string
+  detail?: string
+  startedAt?: number
 }
 
 export function ProgressOverlay({ progress }: { progress: ProgressState }) {
-  const pct = Math.round((progress.current / progress.total) * 100)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { if (!progress.startedAt) return; setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [progress.startedAt])
+  const { percent: pct } = getWasteSubmitProgress({ completed: progress.current, total: progress.total })
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-xl border-2 border-border bg-[#111] p-5 text-center shadow-nb-lg">
@@ -70,7 +76,8 @@ export function ProgressOverlay({ progress }: { progress: ProgressState }) {
             style={{ width: `${pct}%` }}
           />
         </div>
-        <div className="mb-2 text-xs font-bold text-text-primary">{pct}%</div>
+        <div className="mb-2 text-xs font-bold text-text-primary">{pct}%{progress.startedAt ? ` • ${formatWasteSubmitElapsed(now - progress.startedAt)}` : ''}</div>
+        {progress.detail && <p className="mb-2 text-[10px] text-text-muted">{progress.detail}</p>}
         <p className="text-[10px] text-text-muted">Sabar ya, jangan ditutup halamannya.</p>
       </div>
     </div>
