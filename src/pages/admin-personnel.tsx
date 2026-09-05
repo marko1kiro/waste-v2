@@ -149,37 +149,37 @@ export default function AdminPersonnel() {
       <ConfirmDialog open={Boolean(deleting)} title="Hapus personnel?" description={`Personnel ${deleting?.full_name || deleting?.name || ''} akan dihapus.`} onConfirm={deactivatePersonnel} onCancel={() => setDeleting(null)} />
 
       <div className="mb-5">
-        <h1 className="text-xl font-black text-warning">Admin • Personnel</h1>
+        <h1 className="text-xl font-semibold text-warning-600 dark:text-warning-400">Admin • Personnel</h1>
         <p className="text-xs text-text-muted">Kelola QC & Manager.</p>
       </div>
 
-      <section className="mb-5 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
-        <h2 className="mb-3 text-sm font-black text-text-primary">Tambah Personnel</h2>
+      <section className="mb-5 rounded-xl border border-border bg-surface p-4 shadow-theme-sm">
+        <h2 className="mb-3 text-sm font-semibold text-text-primary">Tambah Personnel</h2>
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          <input placeholder="Short name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary" />
-          <input placeholder="Full name" value={form.full_name} onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))} className="rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary" />
-          <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"><option value="qc">qc</option><option value="manager">manager</option></select>
-          <button onClick={addPersonnel} disabled={creating} className="rounded-lg border-2 border-[#000] bg-warning px-4 py-2 text-sm font-black text-black shadow-nb-sm transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-md active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{creating ? 'Nyimpen...' : 'Tambah'}</button>
+          <input placeholder="Short name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" />
+          <input placeholder="Full name" value={form.full_name} onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" />
+          <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"><option value="qc">qc</option><option value="manager">manager</option></select>
+          <button onClick={addPersonnel} disabled={creating} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:opacity-50">{creating ? 'Nyimpen...' : 'Tambah'}</button>
         </div>
       </section>
 
-      <section className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
+      <section className="rounded-xl border border-border bg-surface p-4 shadow-theme-sm">
         <div className="mb-2 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <h2 className="text-sm font-black text-text-primary">Daftar Personnel</h2>
+          <h2 className="text-sm font-semibold text-text-primary">Daftar Personnel</h2>
           <div className="grid gap-2 md:grid-cols-3 xl:min-w-[640px]">
-            <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-text-muted"><Search size={14} /><input placeholder="Cari nama / role" value={query} onChange={(e) => setQuery(e.target.value)} className="w-full bg-transparent text-sm text-text-primary outline-none" /></div>
-            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as 'all' | 'qc' | 'manager')} className="rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"><option value="all">Semua Role</option><option value="qc">QC</option><option value="manager">Manager</option></select>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"><option value="full_name">Sort: Full name</option><option value="name">Sort: Short name</option><option value="role">Sort: Role</option></select>
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-text-muted"><Search size={14} /><input placeholder="Cari nama / role" value={query} onChange={(e) => setQuery(e.target.value)} className="w-full bg-transparent text-sm text-text-primary outline-none" /></div>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as 'all' | 'qc' | 'manager')} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"><option value="all">Semua Role</option><option value="qc">QC</option><option value="manager">Manager</option></select>
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"><option value="full_name">Sort: Full name</option><option value="name">Sort: Short name</option><option value="role">Sort: Role</option></select>
           </div>
         </div>
 
-        <div className="mb-4 rounded-lg border border-border bg-[#0d0d0d] px-3 py-2 text-xs text-text-muted">
+        <div className="mb-4 rounded-lg border border-border bg-background px-3 py-2 text-xs text-text-muted">
           Upload TTD: PNG/JPG/WEBP, max 500KB, background putih/transparan.
         </div>
 
-        {isLoading && <div className="rounded-lg border border-border bg-[#0d0d0d] px-3 py-3 text-sm text-text-muted">Bentar ya...</div>}
-        {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-3 text-sm text-danger">Waduh gagal muat personnel. Coba refresh ya.</div>}
-        {!isLoading && !error && rows.length === 0 && <div className="rounded-lg border border-border bg-[#0d0d0d] px-3 py-3 text-sm text-text-muted">Belum ada personnel.</div>}
+        {isLoading && <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-muted">Bentar ya...</div>}
+        {error && <div className="rounded-lg border border-error-200 bg-error-50 dark:border-error-500/20 dark:bg-error-500/10 px-3 py-3 text-sm text-error-600 dark:text-error-400">Waduh gagal muat personnel. Coba refresh ya.</div>}
+        {!isLoading && !error && rows.length === 0 && <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-muted">Belum ada personnel.</div>}
 
         {!isLoading && !error && rows.length > 0 && (
           <>
@@ -189,22 +189,22 @@ export default function AdminPersonnel() {
                 const isUploading = uploadingId === p.id
                 const isDeleting = deletingId === p.id
                 return (
-                  <div key={p.id} className="rounded-xl border border-border bg-[#0d0d0d] p-3">
+                  <div key={p.id} className="rounded-xl border border-border bg-background p-3">
                     <div className="mb-3 grid gap-2">
                       <div>
-                        <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Short Name</label>
-                        <input defaultValue={p.name} onBlur={(e) => { p.name = e.target.value }} className="w-full rounded border border-border bg-[#111] px-3 py-2 text-sm text-text-primary" />
+                        <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Short Name</label>
+                        <input defaultValue={p.name} onBlur={(e) => { p.name = e.target.value }} className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary" />
                       </div>
                       <div>
-                        <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Full Name</label>
-                        <input defaultValue={p.full_name} onBlur={(e) => { p.full_name = e.target.value }} className="w-full rounded border border-border bg-[#111] px-3 py-2 text-sm text-text-primary" />
+                        <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Full Name</label>
+                        <input defaultValue={p.full_name} onBlur={(e) => { p.full_name = e.target.value }} className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary" />
                       </div>
                       <div>
-                        <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Role</label>
-                        <select defaultValue={p.role} onChange={(e) => { p.role = e.target.value as 'qc' | 'manager' }} className="w-full rounded border border-border bg-[#111] px-3 py-2 text-sm text-text-primary"><option value="qc">qc</option><option value="manager">manager</option></select>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Role</label>
+                        <select defaultValue={p.role} onChange={(e) => { p.role = e.target.value as 'qc' | 'manager' }} className="w-full rounded border border-border bg-surface px-3 py-2 text-sm text-text-primary"><option value="qc">qc</option><option value="manager">manager</option></select>
                       </div>
                       <div>
-                        <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Signature</label>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Signature</label>
                         <div className="flex flex-col gap-2">
                           <label className="inline-flex w-fit cursor-pointer rounded border border-border px-3 py-2 text-xs text-text-muted hover:text-text-primary">
                             {isUploading ? <><Loader2 size={12} className="mr-1 animate-spin" /> Upload...</> : 'Upload TTD'}
@@ -215,8 +215,8 @@ export default function AdminPersonnel() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => savePersonnel({ ...p })} disabled={isSaving || isUploading || isDeleting} className="flex-1 rounded-lg border-2 border-primary/40 bg-primary/10 px-3 py-2 text-xs font-black text-primary shadow-nb-sm transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-md active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isSaving ? 'Nyimpen...' : 'Simpan'}</button>
-                      <button onClick={() => setDeleting(p)} disabled={isSaving || isUploading || isDeleting} className="flex-1 rounded-lg border-2 border-danger/40 bg-danger/10 px-3 py-2 text-xs font-black text-danger shadow-nb-sm transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-md active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isDeleting ? '...' : 'Hapus'}</button>
+                      <button onClick={() => savePersonnel({ ...p })} disabled={isSaving || isUploading || isDeleting} className="flex-1 rounded-lg border border-brand-200 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-500/10 px-3 py-2 text-xs font-semibold text-primary shadow-theme-xs transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-theme-sm active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isSaving ? 'Nyimpen...' : 'Simpan'}</button>
+                      <button onClick={() => setDeleting(p)} disabled={isSaving || isUploading || isDeleting} className="flex-1 rounded-lg border border-error-200 bg-error-50 dark:border-error-500/20 dark:bg-error-500/10 px-3 py-2 text-xs font-semibold text-error-600 dark:text-error-400 shadow-theme-xs transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-theme-sm active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isDeleting ? '...' : 'Hapus'}</button>
                     </div>
                   </div>
                 )
@@ -225,7 +225,7 @@ export default function AdminPersonnel() {
 
             <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#171a20] text-[11px] uppercase tracking-widest text-[#777]">
+                <thead className="bg-surface-alt text-[11px] uppercase text-text-muted">
                   <tr>
                     <th className="px-3 py-3">Short</th>
                     <th className="px-3 py-3">Full Name</th>
@@ -240,10 +240,10 @@ export default function AdminPersonnel() {
                     const isUploading = uploadingId === p.id
                     const isDeleting = deletingId === p.id
                     return (
-                      <tr key={p.id} className="border-t border-border bg-[#0d0d0d] align-top">
-                        <td className="px-3 py-3"><input defaultValue={p.name} onBlur={(e) => { p.name = e.target.value }} className="w-full rounded border border-border bg-[#111] px-2 py-1 text-text-primary" /></td>
-                        <td className="px-3 py-3"><input defaultValue={p.full_name} onBlur={(e) => { p.full_name = e.target.value }} className="w-full rounded border border-border bg-[#111] px-2 py-1 text-text-primary" /></td>
-                        <td className="px-3 py-3"><select defaultValue={p.role} onChange={(e) => { p.role = e.target.value as 'qc' | 'manager' }} className="rounded border border-border bg-[#111] px-2 py-1 text-text-primary"><option value="qc">qc</option><option value="manager">manager</option></select></td>
+                      <tr key={p.id} className="border-t border-border bg-background align-top">
+                        <td className="px-3 py-3"><input defaultValue={p.name} onBlur={(e) => { p.name = e.target.value }} className="w-full rounded border border-border bg-surface px-2 py-1 text-text-primary" /></td>
+                        <td className="px-3 py-3"><input defaultValue={p.full_name} onBlur={(e) => { p.full_name = e.target.value }} className="w-full rounded border border-border bg-surface px-2 py-1 text-text-primary" /></td>
+                        <td className="px-3 py-3"><select defaultValue={p.role} onChange={(e) => { p.role = e.target.value as 'qc' | 'manager' }} className="rounded border border-border bg-surface px-2 py-1 text-text-primary"><option value="qc">qc</option><option value="manager">manager</option></select></td>
                         <td className="px-3 py-3">
                           <div className="flex flex-col gap-2">
                             <label className="inline-flex cursor-pointer rounded border border-border px-2 py-1 text-xs text-text-muted hover:text-text-primary">
@@ -255,8 +255,8 @@ export default function AdminPersonnel() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => savePersonnel({ ...p })} disabled={isSaving || isUploading || isDeleting} className="rounded-lg border-2 border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary shadow-nb-sm transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-md active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isSaving ? 'Nyimpen...' : 'Simpan'}</button>
-                            <button onClick={() => setDeleting(p)} disabled={isSaving || isUploading || isDeleting} className="rounded-lg border-2 border-danger/40 bg-danger/10 px-3 py-1.5 text-xs font-black text-danger shadow-nb-sm transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-md active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isDeleting ? '...' : 'Hapus'}</button>
+                            <button onClick={() => savePersonnel({ ...p })} disabled={isSaving || isUploading || isDeleting} className="rounded-lg border border-brand-200 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-500/10 px-3 py-1.5 text-xs font-semibold text-primary shadow-theme-xs transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-theme-sm active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isSaving ? 'Nyimpen...' : 'Simpan'}</button>
+                            <button onClick={() => setDeleting(p)} disabled={isSaving || isUploading || isDeleting} className="rounded-lg border border-error-200 bg-error-50 dark:border-error-500/20 dark:bg-error-500/10 px-3 py-1.5 text-xs font-semibold text-error-600 dark:text-error-400 shadow-theme-xs transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-theme-sm active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">{isDeleting ? '...' : 'Hapus'}</button>
                           </div>
                         </td>
                       </tr>
