@@ -1,6 +1,6 @@
 /**
  * Multi-Resto Migration (Fase 1)
- * Usage: DATABASE_URL=... npx tsx scripts/migrate-multi-resto.ts
+ * Usage: npx tsx scripts/migrate-multi-resto.ts  (DATABASE_URL via .env / env)
  *
  * Idempotent: aman dijalankan berkali-kali.
  * 1. Buat tabel stores + seed CKRBUL
@@ -10,7 +10,22 @@
  * 5. Composite indexes
  */
 
+import 'dotenv/config'
 import { neon } from '@neondatabase/serverless'
+
+const STORE_TABLES = [
+  'product_destructions',
+  'daily_records',
+  'personnel',
+  'station_items',
+  'tenant_configs',
+] as const
+
+type StoreTable = (typeof STORE_TABLES)[number]
+
+function assertWhitelist(table: string): asserts table is StoreTable {
+  if (!STORE_TABLES.includes(table as StoreTable)) throw new Error(`Unexpected table: ${table}`)
+}
 
 async function migrate() {
   const databaseUrl = process.env.DATABASE_URL
@@ -50,16 +65,9 @@ async function migrate() {
   log(`CKRBUL store id = ${ckrbulId}`)
 
   // 2. Kolom store_id (nullable dulu)
-  const tables = [
-    'product_destructions',
-    'daily_records',
-    'personnel',
-    'station_items',
-    'tenant_configs',
-  ] as const
-
-  for (const table of tables) {
-    await sql`ALTER TABLE ${sql(table)} ADD COLUMN IF NOT EXISTS store_id INTEGER REFERENCES stores(id)`
+  for (const table of STORE_TABLES) {
+    assertWhitelist(table)
+    await sql(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS store_id INTEGER REFERENCES stores(id)`)
     log(`${table}.store_id added (nullable)`)
   }
 
@@ -67,28 +75,20 @@ async function migrate() {
   log('users.store_id added (nullable)')
 
   // 3. Backfill NULL -> CKRBUL
-  for (const table of tables) {
-    const result = await sql`
-      WITH updated AS (
-        UPDATE ${sql(table)} SET store_id = ${ckrbulId} WHERE store_id IS NULL RETURNING 1
-      )
-      SELECT COUNT(*)::int AS count FROM updated
-    `
-    log(`${table}: ${result[0].count} row(s) backfilled to CKRBUL`)
+  for (const table of STORE_TABLES) {
+    assertWhitelist(table)
+    const result = await sql(`UPDATE ${table} SET store_id = $1 WHERE store_id IS NULL`, [ckrbulId])
+    log(`${table}: ${result.rowCount ?? 0} row(s) backfilled to CKRBUL`)
   }
 
-  const usersBackfill = await sql`
-    WITH updated AS (
-      UPDATE users SET store_id = ${ckrbulId} WHERE store_id IS NULL AND role = 'admin_store' RETURNING 1
-    )
-    SELECT COUNT(*)::int AS count FROM updated
-  `
-  log(`users (admin_store): ${usersBackfill[0].count} row(s) backfilled to CKRBUL`)
+  const usersBackfill = await sql(`UPDATE users SET store_id = $1 WHERE store_id IS NULL AND role = 'admin_store'`, [ckrbulId])
+  log(`users (admin_store): ${usersBackfill.rowCount ?? 0} row(s) backfilled to CKRBUL`)
   log('users (super_admin) left NULL = cross-resto')
 
   // 4. NOT NULL (kecuali users)
-  for (const table of tables) {
-    await sql`ALTER TABLE ${sql(table)} ALTER COLUMN store_id SET NOT NULL`
+  for (const table of STORE_TABLES) {
+    assertWhitelist(table)
+    await sql(`ALTER TABLE ${table} ALTER COLUMN store_id SET NOT NULL`)
     log(`${table}.store_id set NOT NULL`)
   }
 
