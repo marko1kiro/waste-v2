@@ -52,8 +52,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sql = getSQL()
 
     const users = await sql`
-      SELECT id, username, password_hash, display_name, role, status
-      FROM users
+      SELECT u.id, u.username, u.password_hash, u.display_name, u.role, u.status,
+             u.store_id,
+             s.code AS store_code, s.name AS store_name,
+             s.drive_account, s.features, s.status AS store_status
+      FROM users u
+      LEFT JOIN stores s ON s.id = u.store_id
       WHERE username = ${username.toLowerCase()}
       LIMIT 1
     `
@@ -92,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Username atau password salah!' })
     }
 
-    const token = createToken(user.username, user.role, user.display_name)
+    const token = createToken(user.username, user.role, user.display_name, user.store_id === null ? null : Number(user.store_id))
 
     await logActivity({
       action: 'login_success',
@@ -111,7 +115,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         username: user.username,
         display_name: user.display_name,
         role: user.role,
+        store_id: user.store_id === null ? null : Number(user.store_id),
       },
+      store: user.store_id
+        ? {
+            id: Number(user.store_id),
+            code: user.store_code,
+            name: user.store_name,
+            drive_account: user.drive_account,
+            features: user.features,
+            status: user.store_status,
+          }
+        : null,
     })
   } catch (err) {
     console.error('[login] Error:', err)
