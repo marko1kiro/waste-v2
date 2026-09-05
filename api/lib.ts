@@ -33,6 +33,7 @@ interface JWTPayload {
   sub: string
   role: string
   name: string
+  store_id?: number | null
   iat: number
   exp: number
 }
@@ -54,12 +55,13 @@ function hmacSign(data: string): string {
   return createHmac('sha256', getSecret()).update(data).digest('base64url')
 }
 
-export function createToken(username: string, role: string, displayName: string): string {
+export function createToken(username: string, role: string, displayName: string, storeId: number | null = null): string {
   const now = Math.floor(Date.now() / 1000)
   const payload: JWTPayload = {
     sub: username,
     role,
     name: displayName,
+    store_id: storeId,
     iat: now,
     exp: now + JWT_EXPIRY_SECONDS,
   }
@@ -69,6 +71,35 @@ export function createToken(username: string, role: string, displayName: string)
   const signature = hmacSign(`${header}.${body}`)
 
   return `${header}.${body}.${signature}`
+}
+
+export interface StoreContext {
+  role: string
+  storeId: number | null
+}
+
+export interface ResolvedStore {
+  storeId: number | null
+}
+
+export function resolveStoreContext(
+  ctx: StoreContext,
+  requestedStoreId: number | undefined,
+): ResolvedStore {
+  if (ctx.role === 'super_admin') {
+    if (
+      requestedStoreId !== undefined &&
+      Number.isInteger(requestedStoreId) &&
+      requestedStoreId > 0
+    ) {
+      return { storeId: requestedStoreId }
+    }
+    return { storeId: null }
+  }
+  if (ctx.storeId === null || !Number.isInteger(ctx.storeId)) {
+    throw new Error('Store context missing')
+  }
+  return { storeId: ctx.storeId }
 }
 
 export interface BlobAccessPayload {
@@ -128,6 +159,7 @@ export function verifyToken(token: string): JWTPayload | null {
 export interface AuthPayload extends JWTPayload {
   userId?: number
   apiKeyId?: number
+  storeId?: number | null
 }
 
 export interface ApiKeyEncryption {
@@ -179,7 +211,7 @@ export async function authenticateRequest(req: any, allowApiKey = false): Promis
   if (!allowApiKey || !token.startsWith('awas_live_')) return null
   const sql = getSQL()
   const rows = await sql`
-    SELECT api_keys.id AS api_key_id, users.id AS user_id, users.username, users.role, users.display_name
+    SELECT api_keys.id AS api_key_id, users.id AS user_id, users.username, users.role, users.display_name, users.store_id
     FROM api_keys
     JOIN users ON users.id = api_keys.user_id
     WHERE api_keys.key_hash = ${hashApiKey(token)}
@@ -191,7 +223,7 @@ export async function authenticateRequest(req: any, allowApiKey = false): Promis
   if (!rows.length) return null
   const row = rows[0]
   void sql`UPDATE api_keys SET last_used_at = NOW() WHERE id = ${row.api_key_id}`.catch(() => undefined)
-  return { sub: String(row.username), role: String(row.role), name: String(row.display_name), iat: 0, exp: Number.MAX_SAFE_INTEGER, userId: Number(row.user_id), apiKeyId: Number(row.api_key_id) }
+  return { sub: String(row.username), role: String(row.role), name: String(row.display_name), store_id: row.store_id === null ? null : Number(row.store_id), iat: 0, exp: Number.MAX_SAFE_INTEGER, userId: Number(row.user_id), apiKeyId: Number(row.api_key_id), storeId: row.store_id === null ? null : Number(row.store_id) }
 }
 
 // ─── Activity Logger ───────────────────────────────────
