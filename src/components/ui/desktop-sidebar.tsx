@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { apiClient } from '@/lib/api-client'
-import { BarChart3, FileText, User, LogOut, ClipboardList, Shield, Boxes, Users, UserCog, ClipboardCheck, Sun, Moon } from 'lucide-react'
+import { BarChart3, FileText, User, LogOut, ClipboardList, Shield, Boxes, Users, UserCog, ClipboardCheck, Sun, Moon, Building2 } from 'lucide-react'
 
 import type { TenantConfigData } from '@/lib/types'
 
@@ -17,6 +17,7 @@ const STORE_NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   { href: '/', label: 'Admin Panel', icon: Shield },
+  { href: '/admin/restos', label: 'Kelola Resto', icon: Building2 },
   { href: '/dashboard', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/personnel', label: 'Personnel', icon: Users },
   { href: '/admin/station-items', label: 'Station Items', icon: Boxes },

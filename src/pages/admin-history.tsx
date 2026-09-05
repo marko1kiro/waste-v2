@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
+import { StoreSwitcher } from '@/components/ui/store-switcher'
+import { getAdminStoreId, withStoreId } from '@/lib/admin-store'
 import ConfirmDialog from '@/components/ui/confirm-dialog'
 import { History, Trash2, Loader2, ChevronLeft, ArrowRightLeft } from 'lucide-react'
 import { Link } from 'wouter'
@@ -41,13 +43,13 @@ export default function AdminHistory() {
 
   const { data, isLoading, refetch } = useQuery<HistoryResponse>({
     queryKey: ['admin-history', date],
-    queryFn: () => apiClient.fetch(`/api/admin/history?date=${date}`),
+    queryFn: () => apiClient.fetch(withStoreId(`/api/admin/history?date=${date}`, getAdminStoreId())),
     enabled: !!date,
   })
 
   const deleteMutation = useMutation({
     mutationFn: (shift: string) =>
-      apiClient.fetch(`/api/admin/history?date=${date}&shift=${shift}`, { method: 'DELETE' }),
+      apiClient.fetch(withStoreId(`/api/admin/history?date=${date}&shift=${shift}`, getAdminStoreId()), { method: 'DELETE' }),
     onSuccess: (_res, shift) => {
       toast.success('Mantap', `Data shift ${shift} tanggal ${date} udah dihapus.`)
       qc.invalidateQueries({ queryKey: ['admin-history', date] })
@@ -62,7 +64,7 @@ export default function AdminHistory() {
 
   const changeMutation = useMutation({
     mutationFn: ({ from, to }: { from: string; to: string }) =>
-      apiClient.fetch(`/api/admin/history?date=${date}&from=${from}&to=${to}`, { method: 'PUT' }),
+      apiClient.fetch(withStoreId(`/api/admin/history?date=${date}&from=${from}&to=${to}`, getAdminStoreId()), { method: 'PUT' }),
     onSuccess: (_res, { from, to }) => {
       toast.success('Shift diganti', `${from} → ${to} tanggal ${date}`)
       setShiftTargets({})
@@ -90,6 +92,7 @@ export default function AdminHistory() {
           <History size={20} className="text-warning-600 dark:text-warning-400" />
           <h1 className="text-lg font-semibold text-text-primary">History Input</h1>
         </div>
+        <StoreSwitcher invalidateKeys={[['admin-history']]} />
       </div>
 
       <div className="mb-4 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">

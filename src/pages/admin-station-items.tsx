@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
+import { StoreSwitcher } from '@/components/ui/store-switcher'
+import { getAdminStoreId, withStoreId } from '@/lib/admin-store'
 import ConfirmDialog from '@/components/ui/confirm-dialog'
 import { Search } from 'lucide-react'
 
@@ -27,7 +29,7 @@ export default function AdminStationItems() {
 
   const { data, refetch, isLoading, error } = useQuery<{ success: boolean; data: StationItemRow[] }>({
     queryKey: ['admin-station-items'],
-    queryFn: () => apiClient.fetch('/api/admin/station-items'),
+    queryFn: () => apiClient.fetch(withStoreId('/api/admin/station-items', getAdminStoreId())),
   })
 
   const rows = useMemo(() => {
@@ -57,7 +59,7 @@ export default function AdminStationItems() {
 
     setCreating(true)
     try {
-      await apiClient.fetch('/api/admin/station-items', { method: 'POST', body: JSON.stringify({ ...form, nama_produk: form.nama_produk.trim().toUpperCase() }) })
+      await apiClient.fetch(withStoreId('/api/admin/station-items', getAdminStoreId()), { method: 'POST', body: JSON.stringify({ ...form, nama_produk: form.nama_produk.trim().toUpperCase() }) })
       setForm({ station: 'NOODLE', nama_produk: '', unit: 'PCS', kode_lot_wajib: false, is_manual: false, sort_order: 0 })
       await refetch()
       toast.success('Item udah ditambahin')
@@ -71,7 +73,7 @@ export default function AdminStationItems() {
   async function saveItem(item: StationItemRow) {
     setSavingId(item.id)
     try {
-      await apiClient.fetch('/api/admin/station-items', { method: 'PUT', body: JSON.stringify({ ...item, nama_produk: item.nama_produk.trim().toUpperCase() }) })
+      await apiClient.fetch(withStoreId('/api/admin/station-items', getAdminStoreId()), { method: 'PUT', body: JSON.stringify({ ...item, nama_produk: item.nama_produk.trim().toUpperCase() }) })
       await refetch()
       toast.success('Item udah diupdate')
     } catch (err) {
@@ -85,7 +87,7 @@ export default function AdminStationItems() {
     if (!deleting) return
     setDeletingId(deleting.id)
     try {
-      await apiClient.fetch(`/api/admin/station-items?id=${deleting.id}`, { method: 'DELETE' })
+      await apiClient.fetch(withStoreId(`/api/admin/station-items?id=${deleting.id}`, getAdminStoreId()), { method: 'DELETE' })
       await refetch()
       toast.info('Item udah dihapus')
       setDeleting(null)
@@ -100,9 +102,12 @@ export default function AdminStationItems() {
     <div className="mx-auto max-w-7xl py-2">
       <ConfirmDialog open={Boolean(deleting)} title="Hapus station item?" description={`Item ${deleting?.nama_produk || ''} akan dihapus.`} onConfirm={deleteItem} onCancel={() => setDeleting(null)} />
 
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-warning-600 dark:text-warning-400">Admin • Station Items</h1>
-        <p className="text-xs text-text-muted">Kelola master item per station.</p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">Admin • Station Items</h1>
+          <p className="text-xs text-text-muted">Kelola master item per station.</p>
+        </div>
+        <StoreSwitcher invalidateKeys={[['station-items', 'admin-station-items']]} />
       </div>
 
       <section className="mb-5 rounded-xl border border-border bg-surface p-4 shadow-theme-sm">

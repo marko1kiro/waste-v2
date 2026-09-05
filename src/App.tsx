@@ -15,6 +15,7 @@ const Profile = lazy(() => import('./pages/profile'))
 const AdminPanel = lazy(() => import('./pages/admin-panel'))
 const AdminPersonnel = lazy(() => import('./pages/admin-personnel'))
 const AdminStationItems = lazy(() => import('./pages/admin-station-items'))
+const AdminRestos = lazy(() => import('./pages/admin-restos'))
 const AdminUsers = lazy(() => import('./pages/admin-users'))
 const AdminHistory = lazy(() => import('./pages/admin-history'))
 const ApiDocs = lazy(() => import('./pages/api-docs'))
@@ -78,6 +79,7 @@ function AdminRouter() {
       <Route path="/admin/personnel" component={AdminPersonnel} />
       <Route path="/admin/station-items" component={AdminStationItems} />
       <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/admin/restos" component={AdminRestos} />
       <Route path="/admin/history" component={AdminHistory} />
       <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
