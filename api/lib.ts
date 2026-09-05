@@ -102,6 +102,30 @@ export function resolveStoreContext(
   return { storeId: ctx.storeId }
 }
 
+export interface StoreScope {
+  clause: string
+  params: Array<number>
+  nextParam: number
+}
+
+export function buildStoreScope(storeId: number | null): StoreScope {
+  if (storeId === null) {
+    return { clause: 'TRUE', params: [], nextParam: 1 }
+  }
+  return { clause: 'store_id = $1', params: [storeId], nextParam: 2 }
+}
+
+export function getRequestedStoreId(req: { query?: Record<string, unknown> } | VercelRequestLike): number | undefined {
+  const raw = (req.query as Record<string, unknown> | undefined)?.store_id
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const value = Number(raw)
+  return Number.isInteger(value) && value > 0 ? value : undefined
+}
+
+export interface VercelRequestLike {
+  query?: Record<string, unknown>
+}
+
 export interface BlobAccessPayload {
   blobUrl: string
   exp: number
