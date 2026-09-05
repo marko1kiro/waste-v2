@@ -51,7 +51,16 @@ const STATION_COLORS: Record<string, string> = {
   BAR: STATION_UI.BAR.accent,
   PRODUKSI: STATION_UI.PRODUKSI.accent,
 }
-const SHIFT_COLORS = ['#4FD1FF', '#FFE500', '#f59e0b', '#8b5cf6']
+const SHIFT_COLORS = ['#465fff', '#12b76a', '#f79009', '#7a5af8']
+
+const CHART_TICK = { fill: '#98a2b3', fontSize: 11 }
+const CHART_TOOLTIP_STYLE = {
+  backgroundColor: 'rgb(var(--surface))',
+  border: '1px solid rgb(var(--border))',
+  borderRadius: 8,
+  color: 'rgb(var(--text-primary))',
+  fontSize: 12,
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -83,12 +92,12 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-6xl py-2">
-        <h1 className="mb-4 text-xl font-black text-primary">Dashboard</h1>
+        <h1 className="mb-4 text-xl font-semibold text-text-primary">Dashboard</h1>
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <CardSkeleton /><CardSkeleton /><CardSkeleton /><CardSkeleton />
         </div>
         <div className="space-y-4">
-          <div className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
             <Skeleton className="mb-3 h-4 w-28" />
             <Skeleton className="h-[240px] w-full" />
           </div>
@@ -100,8 +109,8 @@ export default function Dashboard() {
   if (!data?.success) {
     return (
       <div className="mx-auto max-w-4xl py-4">
-        <p className="text-sm text-danger">Waduh, gagal muat dashboard.</p>
-        <button onClick={() => refetch()} className="mt-3 rounded-lg border-2 border-border px-4 py-2 text-sm font-bold text-text-primary">Coba Lagi</button>
+        <p className="text-sm text-error-600 dark:text-error-400">Waduh, gagal muat dashboard.</p>
+        <button onClick={() => refetch()} className="mt-3 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-alt">Coba Lagi</button>
       </div>
     )
   }
@@ -109,8 +118,8 @@ export default function Dashboard() {
   if (data.summary.totalItems === 0) {
     return (
       <div className="mx-auto max-w-4xl py-4">
-        <div className="rounded-xl border-2 border-border bg-[#111] p-6 text-center shadow-nb-sm">
-          <h1 className="mb-2 text-xl font-black text-primary">Dashboard</h1>
+        <div className="rounded-xl border border-border bg-surface p-6 text-center shadow-theme-xs">
+          <h1 className="mb-2 text-xl font-semibold text-text-primary">Dashboard</h1>
           <p className="text-sm text-text-muted">Belum ada data waste. Submit data dulu dari Input Waste ya.</p>
         </div>
       </div>
@@ -121,10 +130,10 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl py-2">
-      <div className="mb-5 rounded-2xl border-2 border-border bg-gradient-to-br from-[#111] to-[#171a20] p-5 shadow-nb-md">
+      <div className="mb-5 rounded-2xl border border-border bg-surface p-5 shadow-theme-xs">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-xl font-black text-primary">Dashboard</h1>
+            <h1 className="text-xl font-semibold text-text-primary">Dashboard</h1>
             <p className="text-xs text-text-muted">Pantau tren waste harian & breakdown station.</p>
             {data.lastEntry && (
               <p className="mt-2 text-xs text-text-muted">
@@ -134,7 +143,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap gap-2">
             {activeQCs.length > 0 ? activeQCs.map((qc) => (
-              <span key={qc} className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">QC: {qc}</span>
+              <span key={qc} className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-[11px] font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400">QC: {qc}</span>
             )) : <span className="rounded-full border border-border px-3 py-1 text-[11px] text-text-muted">Belum ada QC aktif</span>}
           </div>
         </div>
@@ -142,12 +151,12 @@ export default function Dashboard() {
 
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-black text-primary">Dashboard</h1>
+          <h1 className="text-xl font-semibold text-text-primary">Dashboard</h1>
           <p className="text-xs text-text-muted">Pantau tren waste harian & breakdown station.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {RANGE_OPTIONS.map((r) => (
-            <button key={r} onClick={() => setRange(r)} className={`rounded-lg border-2 px-3 py-2 text-xs font-black transition ${range === r ? 'border-warning bg-warning/10 text-warning' : 'border-border bg-[#141414] text-text-muted hover:text-text-primary'}`}>
+            <button key={r} onClick={() => setRange(r)} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${range === r ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400' : 'border-border bg-surface text-text-muted hover:bg-surface-alt'}`}>
               {r === 9999 ? 'ALL' : `${r}H`}
             </button>
           ))}
@@ -166,10 +175,10 @@ export default function Dashboard() {
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={filteredDaily}>
-                <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="qty" stroke="#4FD1FF" fill="rgba(79,209,255,0.25)" />
+                <XAxis dataKey="date" tick={CHART_TICK} />
+                <YAxis tick={CHART_TICK} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Area type="monotone" dataKey="qty" stroke="#465fff" fill="rgba(70,95,255,0.18)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -179,11 +188,11 @@ export default function Dashboard() {
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stationChartData}>
-                <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                <Tooltip />
+                <XAxis dataKey="name" tick={CHART_TICK} />
+                <YAxis tick={CHART_TICK} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
                 <Bar dataKey="qty" radius={[8, 8, 0, 0]}>
-                  {stationChartData.map((entry) => <Cell key={entry.name} fill={STATION_COLORS[entry.name] || '#4FD1FF'} />)}
+                  {stationChartData.map((entry) => <Cell key={entry.name} fill={STATION_COLORS[entry.name] || '#465fff'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -197,7 +206,7 @@ export default function Dashboard() {
                 <Pie data={shiftChartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={3}>
                   {shiftChartData.map((entry, idx) => <Cell key={entry.name} fill={SHIFT_COLORS[idx % SHIFT_COLORS.length]} />)}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -214,7 +223,7 @@ export default function Dashboard() {
                     <span className="text-text-muted"><span className="mr-2 text-text-dim">{i + 1}.</span>{p.name}</span>
                     <span className="font-bold text-text-primary">{p.qty}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-[#1a1a1a]"><div className="h-2 rounded-full bg-warning" style={{ width: `${pct}%` }} /></div>
+                  <div className="h-2 rounded-full bg-surface-alt"><div className="h-2 rounded-full bg-brand-500" style={{ width: `${pct}%` }} /></div>
                 </div>
               )
             })}
@@ -227,8 +236,8 @@ export default function Dashboard() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
-      <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#555]">{label}</p>
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+      <p className="mb-2 text-[10px] font-semibold uppercase text-text-muted">{label}</p>
       <AnimatedNumber value={value} />
     </div>
   )
@@ -252,16 +261,16 @@ function AnimatedNumber({ value }: { value: number }) {
     return () => cancelAnimationFrame(frame)
   }, [value])
 
-  return <span className="text-2xl font-black text-text-primary">{displayValue}</span>
+  return <span className="text-2xl font-semibold text-text-primary">{displayValue}</span>
 }
 
 function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <section className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
       <button onClick={() => setOpen((v) => !v)} className="mb-2 flex w-full items-center justify-between text-left">
-        <h2 className="text-sm font-black text-text-primary">{title}</h2>
+        <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
         <ChevronDown size={16} className={`text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && children}
@@ -363,23 +372,23 @@ export function DashboardHistory() {
     })
   }
 
-  const inputCls = 'w-full rounded border border-border bg-[#0d0d0d] px-2 py-1 text-xs text-text-primary focus:border-primary focus:outline-none'
-  const selectCls = 'w-full rounded border border-border bg-[#0d0d0d] px-2 py-1 text-xs text-text-primary focus:border-primary focus:outline-none'
+  const inputCls = 'w-full rounded border border-border bg-background px-2 py-1 text-xs text-text-primary focus:border-brand-500 focus:outline-none'
+  const selectCls = 'w-full rounded border border-border bg-background px-2 py-1 text-xs text-text-primary focus:border-brand-500 focus:outline-none'
 
   return (
     <div className="mx-auto max-w-5xl py-2">
       <div className="mb-4 flex items-center gap-3">
         <CalendarDays size={18} className="text-primary" />
-        <h1 className="text-lg font-black text-text-primary">History Input</h1>
+        <h1 className="text-lg font-semibold text-text-primary">History Input</h1>
       </div>
 
-      <div className="mb-4 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
-        <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Pilih Tanggal</label>
+      <div className="mb-4 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+        <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Pilih Tanggal</label>
         <input
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500"
         />
       </div>
 
@@ -391,7 +400,7 @@ export function DashboardHistory() {
       )}
 
       {!isLoading && items.length === 0 && (
-        <div className="rounded-xl border-2 border-border bg-[#111] p-6 text-center shadow-nb-sm">
+        <div className="rounded-xl border border-border bg-surface p-6 text-center shadow-theme-xs">
           <p className="text-sm text-text-muted">Ga ada data buat tanggal <strong className="text-text-primary">{selectedDate}</strong>.</p>
         </div>
       )}
@@ -400,17 +409,17 @@ export function DashboardHistory() {
         const stationMap = grouped[shift]
         if (!stationMap) return null
         return (
-          <div key={shift} className="mb-4 rounded-xl border-2 border-border bg-[#111] shadow-nb-sm">
-            <div className="flex items-center gap-2 border-b border-border bg-[#191919] px-4 py-2.5 rounded-t-xl">
-              <span className="text-xs font-black text-warning">{shift}</span>
+          <div key={shift} className="mb-4 rounded-xl border border-border bg-surface shadow-theme-xs">
+            <div className="flex items-center gap-2 border-b border-border bg-surface-alt px-4 py-2.5 rounded-t-xl">
+              <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">{shift}</span>
             </div>
             <div className="divide-y divide-border">
               {Object.entries(stationMap).map(([station, rows]) => (
                 <div key={station} className="p-4">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-text-primary">{station}</span>
-                      <span className="rounded-full bg-[#222] px-2 py-0.5 text-[10px] text-text-muted">{rows.length} item</span>
+                      <span className="text-xs font-semibold text-text-primary">{station}</span>
+                      <span className="rounded-full bg-surface-alt px-2 py-0.5 text-[10px] text-text-muted">{rows.length} item</span>
                       <span className="text-[10px] text-text-dim">by {rows[0]?.submitted_by || '-'}</span>
                     </div>
                   </div>
@@ -427,7 +436,7 @@ export function DashboardHistory() {
                          <col className="w-[68px]" />
                        </colgroup>
                        <thead>
-                         <tr className="text-left text-[10px] uppercase tracking-widest text-[#555]">
+                         <tr className="text-left text-[10px] uppercase text-text-muted">
                            <th className="pb-1 pr-2">Nama Produk</th>
                            <th className="pb-1 pr-2 text-center">Qty</th>
                            <th className="pb-1 pr-2">Unit</th>
@@ -440,7 +449,7 @@ export function DashboardHistory() {
                       <tbody className="divide-y divide-border/50">
                         {rows.map((item) => (
                           editingId === item.id && editForm ? (
-                            <tr key={item.id} className="bg-primary/5">
+                            <tr key={item.id} className="bg-brand-50/60 dark:bg-brand-500/5">
                               <td className="py-1.5 pr-2"><input value={editForm.nama_produk} onChange={(e) => setEditForm({ ...editForm, nama_produk: e.target.value })} className={inputCls} /></td>
                               <td className="py-1.5 pr-2"><input type="number" min={1} value={editForm.jumlah_produk} onChange={(e) => setEditForm({ ...editForm, jumlah_produk: Number(e.target.value) })} className={inputCls + ' text-center'} /></td>
                               <td className="py-1.5 pr-2">
@@ -462,7 +471,7 @@ export function DashboardHistory() {
                               <td className="py-1.5">
                                 <div className="flex gap-1">
                                   <button type="button" onClick={() => updateMutation.mutate({ id: item.id, form: editForm })} disabled={updateMutation.isPending} className="rounded bg-success/20 p-1 text-success hover:bg-success/30 disabled:opacity-40"><Check size={12} /></button>
-                                  <button type="button" onClick={() => { setEditingId(null); setEditForm(null) }} className="rounded bg-[#222] p-1 text-text-muted hover:text-text-primary"><X size={12} /></button>
+                                  <button type="button" onClick={() => { setEditingId(null); setEditForm(null) }} className="rounded bg-surface-alt p-1 text-text-muted hover:text-text-primary"><X size={12} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -476,7 +485,7 @@ export function DashboardHistory() {
                               <td className="py-1.5 pr-2 text-text-muted">{item.jam_tanggal_pemusnahan || '-'}</td>
                               <td className="py-1.5">
                                 <div className="flex gap-1">
-                                  <button type="button" onClick={() => startEdit(item)} className="rounded bg-primary/10 p-1 text-primary hover:bg-primary/20"><Pencil size={11} /></button>
+                                  <button type="button" onClick={() => startEdit(item)} className="rounded bg-brand-50 p-1 text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"><Pencil size={11} /></button>
                                   <button type="button" onClick={() => setConfirmDeleteId(item.id)} className="rounded bg-danger/10 p-1 text-danger hover:bg-danger/20"><Trash2 size={11} /></button>
                                 </div>
                               </td>
@@ -507,7 +516,7 @@ export function DashboardHistory() {
                             <td className="py-1.5">
                               <div className="flex gap-1">
                                 <button type="button" onClick={() => addMutation.mutate({ ...addForm, business_date: selectedDate })} disabled={!addForm.nama_produk || addForm.jumlah_produk < 1 || addMutation.isPending} className="rounded bg-success/20 p-1 text-success hover:bg-success/30 disabled:opacity-40"><Check size={12} /></button>
-                                <button type="button" onClick={() => { setAddingFor(null); setAddForm(null) }} className="rounded bg-[#222] p-1 text-text-muted hover:text-text-primary"><X size={12} /></button>
+                                <button type="button" onClick={() => { setAddingFor(null); setAddForm(null) }} className="rounded bg-surface-alt p-1 text-text-muted hover:text-text-primary"><X size={12} /></button>
                               </div>
                             </td>
                           </tr>
