@@ -591,23 +591,23 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   return (
     <div className="mx-auto max-w-4xl py-2" onClickCapture={markDirty} onChangeCapture={markDirty}>
       {progress && <ProgressOverlay progress={progress} />}
-      {persistenceStatus && <div role="status" aria-live="polite" className="mb-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary"><span>{persistenceStatus}</span>{persistenceStatus === 'Draft dipulihkan.' && <button type="button" onClick={() => setPersistenceStatus('')} aria-label="Tutup status draft">Tutup</button>}</div>}
-      {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning"><p className="font-black">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => void retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems)} className="rounded border border-warning px-2 py-1 font-black">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning px-2 py-1 font-black">Login</button>}</div>)}</section>}
+      {persistenceStatus && <div role="status" aria-live="polite" className="mb-3 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"><span>{persistenceStatus}</span>{persistenceStatus === 'Draft dipulihkan.' && <button type="button" onClick={() => setPersistenceStatus('')} aria-label="Tutup status draft">Tutup</button>}</div>}
+      {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><p className="font-semibold">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => void retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems)} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Login</button>}</div>)}</section>}
 
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black text-primary">{pasteMode ? 'Paste Format Waste' : 'Input Waste'}</h1>
+          <h1 className="text-xl font-semibold text-text-primary">{pasteMode ? 'Paste Format Waste' : 'Input Waste'}</h1>
           <p className="text-xs text-text-muted">Step {stepLabel(step, pasteMode)}</p>
         </div>
         {step !== 'config' && step !== 'success' && step !== 'paste' && (
-          <button type="button" onClick={() => setStep(step === 'items' ? 'config' : 'items')} className="flex items-center gap-1 rounded-lg border-2 border-border bg-[#141414] px-3 py-2 text-xs font-bold text-text-muted hover:text-text-primary"><ArrowLeft size={14} /> Config</button>
+          <button type="button" onClick={() => setStep(step === 'items' ? 'config' : 'items')} className="flex items-center gap-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-medium text-text-muted hover:bg-surface-alt hover:text-text-primary"><ArrowLeft size={14} /> Config</button>
         )}
       </div>
 
       {step === 'paste' && (
-        <section className="space-y-4 rounded-xl border-2 border-primary/30 bg-[#111] p-4 shadow-nb-md">
+        <section className="space-y-4 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
           <div>
-            <h2 className="text-sm font-black text-primary">Paste pesan WhatsApp Waste</h2>
+            <h2 className="text-sm font-semibold text-text-primary">Paste pesan WhatsApp Waste</h2>
             <p className="mt-1 text-xs text-text-muted">Parser akan membaca metadata, station, dan item. Setelah diterapkan, semua data masih bisa diedit di form biasa.</p>
           </div>
           <textarea
@@ -615,11 +615,11 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             onChange={(event) => { setRawPaste(event.target.value); setPasteApplyIssues([]) }}
             rows={16}
             placeholder={'*WASTE OPENING*\n05-08-2026\nQC : NAMA QC\nMANAGER : NAMA MANAGER\nJAM PEMUSNAHAN : 15.04 WIB\nMETODE : DIBUANG\nKODE LOT : TANGGAL PEMUSNAHAN\n\n*NOODLE*\n- PANGSIT GORENG :18 PCS - PATAH & KUNCUP'}
-            className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-dim focus:border-warning"
+            className="w-full rounded-lg border border-border bg-background px-3 py-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-dim focus:border-brand-500"
           />
 
           {rawPaste.trim() && (
-            <div className="rounded-lg border border-border bg-[#0d0d0d] p-3 text-xs text-text-muted">
+            <div className="rounded-lg border border-border bg-background p-3 text-xs text-text-muted">
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 <span>Tanggal: <strong className="text-text-primary">{parsedPaste.businessDate || '-'}</strong></span>
                 <span>Shift: <strong className="text-text-primary">{parsedPaste.shift || '-'}</strong></span>
@@ -651,7 +651,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             type="button"
             onClick={applyPaste}
             disabled={!rawPaste.trim() || parsedPaste.errors.length > 0 || catalogLoading || Boolean(catalogError) || !pastedQC || !pastedManager}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-warning py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 py-4 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Terapkan ke Form <ChevronRight size={16} />
           </button>
@@ -659,77 +659,77 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       )}
 
       {step === 'config' && (
-        <section className="space-y-4 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
+        <section className="space-y-4 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
           {personnelMissing && (
-            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+            <div className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400">
               Data QC / Manager belum lengkap. Minta super admin lengkapin ya.
             </div>
           )}
           {catalogError && (
-            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+            <div className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs text-error-700 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-400">
               Catalog item ada yang gagal dimuat. Coba refresh ya.
             </div>
           )}
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">Tanggal</label>
-              <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning" />
+              <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Tanggal</label>
+              <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500" />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">Shift</label>
-              <select value={shift} onChange={(e) => setShift(e.target.value as (typeof SHIFTS)[number])} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning">{SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+              <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Shift</label>
+              <select value={shift} onChange={(e) => setShift(e.target.value as (typeof SHIFTS)[number])} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500">{SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
             </div>
           </div>
 
-          <div className="rounded-lg border border-border bg-[#0d0d0d] px-3 py-3 text-xs text-text-muted">
+          <div className="rounded-lg border border-border bg-background px-3 py-3 text-xs text-text-muted">
             <div className="mb-2 flex items-center justify-between">
               <span>{selectedStations.length} station dipilih. Nanti disubmit per station ya.</span>
-              <button type="button" onClick={toggleAllStations} className="font-black text-warning">{selectedStations.length === STATIONS.length ? 'Reset' : 'Pilih Semua'}</button>
+              <button type="button" onClick={toggleAllStations} className="font-semibold text-brand-600 dark:text-brand-400">{selectedStations.length === STATIONS.length ? 'Reset' : 'Pilih Semua'}</button>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {STATIONS.map((s) => (
-                <button key={s} type="button" onClick={() => toggleStation(s)} className={`rounded-lg border-2 px-3 py-3 text-xs font-black transition ${selectedStations.includes(s) ? 'border-warning bg-warning/10 text-warning shadow-nb-yellow' : 'border-border bg-[#141414] text-text-muted hover:text-text-primary'}`}>{s}</button>
+                <button key={s} type="button" onClick={() => toggleStation(s)} className={`rounded-lg border px-3 py-3 text-xs font-semibold transition ${selectedStations.includes(s) ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400' : 'border-border bg-surface text-text-muted hover:bg-surface-alt hover:text-text-primary'}`}>{s}</button>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl border-2 border-border bg-[#0d0d0d] p-3">
-            <label className="flex items-start gap-3"><input type="checkbox" checked={testerMode} onChange={(e) => setTesterMode(e.target.checked)} className="mt-1" /><div><p className="text-sm font-black text-text-primary">Tester Mode</p><p className="text-xs text-text-muted">Checklist observasi akhir shift.</p></div></label>
+          <div className="rounded-xl border border-border bg-background p-3">
+            <label className="flex items-start gap-3"><input type="checkbox" checked={testerMode} onChange={(e) => setTesterMode(e.target.checked)} className="mt-1" /><div><p className="text-sm font-semibold text-text-primary">Tester Mode</p><p className="text-xs text-text-muted">Checklist observasi akhir shift.</p></div></label>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">QC</label>
-              <select value={qcName} onChange={(e) => setQcName(e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning"><option value="">-- Pilih QC --</option>{qcList.map((p) => <option key={p.name} value={p.full_name || p.name}>{p.full_name || p.name}</option>)}</select>
+              <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">QC</label>
+              <select value={qcName} onChange={(e) => setQcName(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500"><option value="">-- Pilih QC --</option>{qcList.map((p) => <option key={p.name} value={p.full_name || p.name}>{p.full_name || p.name}</option>)}</select>
               {selectedQC?.signature_url && <AuthenticatedImage src={selectedQC.signature_url} alt={selectedQC.full_name || selectedQC.name} className="mt-2 h-14 rounded-lg border border-border bg-white p-1" />}
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">Manager</label>
-              <select value={managerName} onChange={(e) => setManagerName(e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning"><option value="">-- Pilih Manager --</option>{managerList.map((p) => <option key={p.name} value={p.full_name || p.name}>{p.full_name || p.name}</option>)}</select>
+              <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Manager</label>
+              <select value={managerName} onChange={(e) => setManagerName(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500"><option value="">-- Pilih Manager --</option>{managerList.map((p) => <option key={p.name} value={p.full_name || p.name}>{p.full_name || p.name}</option>)}</select>
               {selectedManager?.signature_url && <AuthenticatedImage src={selectedManager.signature_url} alt={selectedManager.full_name || selectedManager.name} className="mt-2 h-14 rounded-lg border border-border bg-white p-1" />}
             </div>
           </div>
 
           {/* Inline validation hints */}
-          {!qcName && <p className="text-[11px] text-warning">⚠️ QC belum dipilih</p>}
-          {!managerName && <p className="text-[11px] text-warning">⚠️ Manager belum dipilih</p>}
-          {!testerMode && selectedStations.length === 0 && <p className="text-[11px] text-warning">⚠️ Pilih minimal 1 station atau aktifin tester mode</p>}
+          {!qcName && <p className="text-[11px] text-warning-600 dark:text-warning-400">⚠️ QC belum dipilih</p>}
+          {!managerName && <p className="text-[11px] text-warning-600 dark:text-warning-400">⚠️ Manager belum dipilih</p>}
+          {!testerMode && selectedStations.length === 0 && <p className="text-[11px] text-warning-600 dark:text-warning-400">⚠️ Pilih minimal 1 station atau aktifin tester mode</p>}
 
-          <button type="button" disabled={personnelMissing || !qcName || !managerName || (!testerMode && selectedStations.length === 0)} onClick={() => { setExpandedStation(selectedStations[0] || 'NOODLE'); setStep('items') }} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-warning py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg disabled:cursor-not-allowed disabled:opacity-50">Pilih Item {selectedStations.length ? `(${selectedStations.length} Station)` : ''} <ChevronRight size={16} /></button>
+          <button type="button" disabled={personnelMissing || !qcName || !managerName || (!testerMode && selectedStations.length === 0)} onClick={() => { setExpandedStation(selectedStations[0] || 'NOODLE'); setStep('items') }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 py-4 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">Pilih Item {selectedStations.length ? `(${selectedStations.length} Station)` : ''} <ChevronRight size={16} /></button>
         </section>
       )}
 
       {step === 'items' && (
         <section className="space-y-4">
-          <div className="flex items-start justify-between rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
+          <div className="flex items-start justify-between rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
             <div>
-              <h2 className="text-sm font-black text-text-primary">Pilih Item Waste</h2>
+              <h2 className="text-sm font-semibold text-text-primary">Pilih Item Waste</h2>
               <p className="text-xs text-text-muted">{shift} • {businessDate} • {selectedStations.length} station dipilih</p>
             </div>
           </div>
 
-          <details className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
-            <summary className="cursor-pointer text-xs font-black text-text-primary">Tips Input</summary>
+          <details className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+            <summary className="cursor-pointer text-xs font-semibold text-text-primary">Tips Input</summary>
             <ul className="mt-3 list-disc pl-5 text-xs text-text-muted">
               <li>Bisa pilih banyak station sekaligus.</li>
               <li>Fokus satu station yang lagi dibuka aja.</li>
@@ -746,10 +746,10 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             const stationUI = STATION_UI[station]
 
             return (
-              <section key={station} className={`rounded-xl border-2 bg-[#111] shadow-nb-sm ${isOpen ? `${stationUI.borderClass} ${stationUI.bgClass}` : 'border-border'}`}>
+              <section key={station} className={`rounded-xl border-2 bg-surface shadow-theme-xs ${isOpen ? `${stationUI.borderClass} ${stationUI.bgClass}` : 'border-border'}`}>
                 <button type="button" onClick={() => setExpandedStation(station)} className="flex w-full items-center justify-between px-4 py-3 text-left">
                     <div>
-                      <div className={`text-sm font-black ${isOpen ? stationUI.textClass : 'text-text-primary'}`}>{station}</div>
+                      <div className={`text-sm font-semibold ${isOpen ? stationUI.textClass : 'text-text-primary'}`}>{station}</div>
                       <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-text-muted">
                         <span>{itemCount} item terisi</span>
                         <span>•</span>
@@ -757,26 +757,26 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${isOpen ? `${stationUI.borderClass} ${stationUI.bgClass} ${stationUI.textClass}` : 'border-warning/30 bg-warning/10 text-warning'}`}>{itemCount}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${isOpen ? `${stationUI.borderClass} ${stationUI.bgClass} ${stationUI.textClass}` : 'border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400'}`}>{itemCount}</span>
                       <ChevronDown size={16} className={`transition-transform ${isOpen ? `rotate-180 ${stationUI.textClass}` : 'text-text-muted'}`} />
                     </div>
                 </button>
 
                 {isOpen && (
                   <div className="border-t border-border px-4 pb-4 pt-2">
-                    {rows.length === 0 && <div className="rounded-lg border border-dashed border-border bg-[#0d0d0d] px-3 py-4 text-xs text-text-muted">Belum ada item nih. Tap Tambah Item di bawah.</div>}
+                    {rows.length === 0 && <div className="rounded-lg border border-dashed border-border bg-background px-3 py-4 text-xs text-text-muted">Belum ada item nih. Tap Tambah Item di bawah.</div>}
 
                     <div className="space-y-2">
                       {rows.map((row, index) => {
                         const isCollapsed = collapsedRows[station].includes(row.id)
                         return (
-                          <div key={row.id} className="rounded-xl border border-border bg-[#0d0d0d]">
+                          <div key={row.id} className="rounded-xl border border-border bg-background">
                             <div className="flex items-center justify-between gap-2 px-3 py-2">
                               <button type="button" onClick={() => toggleRowCollapse(station, row.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                                 <ChevronDown size={14} className={`shrink-0 text-text-muted transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                                <span className="text-[10px] font-black text-text-muted">#{index + 1}</span>
+                                <span className="text-[10px] font-semibold text-text-muted">#{index + 1}</span>
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate text-sm font-bold text-text-primary">{row.namaProduk || 'Pilih item...'}</div>
+                                  <div className="truncate text-sm font-medium text-text-primary">{row.namaProduk || 'Pilih item...'}</div>
                                   {isCollapsed && (
                                     <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-text-muted">
                                       <span className="rounded-full border border-border px-2 py-0.5">{row.jumlahProduk > 0 ? `${row.jumlahProduk} ${row.unit}` : 'Qty belum diisi'}</span>
@@ -785,33 +785,33 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
                                   )}
                                 </div>
                               </button>
-                              {rows.length > 1 && <button type="button" onClick={() => removeRow(station, row.id)} className="text-danger hover:text-red-300"><Trash2 size={14} /></button>}
+                              {rows.length > 1 && <button type="button" onClick={() => removeRow(station, row.id)} className="text-error-500 hover:text-error-600"><Trash2 size={14} /></button>}
                             </div>
 
                             {!isCollapsed && (
                               <div className="grid gap-2 border-t border-border px-3 py-3 md:grid-cols-2">
                                 <div className="md:col-span-2">
-                                  <select value={row.isManual && row.namaProduk ? '__MANUAL__' : row.namaProduk} onChange={(e) => selectProduct(station, row.id, e.target.value)} className="w-full rounded-lg border-2 border-border bg-[#111] px-3 py-2.5 text-sm text-text-primary outline-none focus:border-warning">
+                                  <select value={row.isManual && row.namaProduk ? '__MANUAL__' : row.namaProduk} onChange={(e) => selectProduct(station, row.id, e.target.value)} className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500">
                                     <option value="">-- Pilih Produk --</option>
                                     {getAvailableOptions(station, row.id).filter((c) => !c.is_manual).map((c) => <option key={c.id} value={c.nama_produk}>{c.nama_produk}</option>)}
                                     <option value="__MANUAL__">LAINNYA (isi manual)</option>
                                   </select>
                                 </div>
 
-                                <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
-                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">QTY</label>
+                                <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">QTY</label>
                                   <input type="number" min={1} inputMode="numeric" placeholder="Isi Quantity" value={row.jumlahProduk === 0 ? '' : String(row.jumlahProduk)} onChange={(e) => updateRow(station, row.id, { jumlahProduk: e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0 })} className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-dim" />
                                 </div>
 
                                 {row.isManual && (
-                                  <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
-                                    <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">NAMA MANUAL</label>
+                                  <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                                    <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">NAMA MANUAL</label>
                                     <input type="text" placeholder="Nama produk manual" value={row.namaProduk} onChange={(e) => updateRow(station, row.id, { namaProduk: e.target.value.toUpperCase() })} className="w-full bg-transparent text-sm text-text-primary outline-none" />
                                   </div>
                                 )}
 
-                                <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
-                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">KODE LOT</label>
+                                <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">KODE LOT</label>
                                   {KODE_LOT_DATE_PICKER_ITEMS.includes(row.namaProduk) ? (
                                     <input type="date" value={row.kodeProduk.length === 8 ? `${row.kodeProduk.slice(4)}-${row.kodeProduk.slice(2,4)}-${row.kodeProduk.slice(0,2)}` : ''} onChange={(e) => updateRow(station, row.id, { kodeProduk: e.target.value ? dateToDDMMYYYY(e.target.value) : '' })} className="w-full bg-transparent text-sm text-text-primary outline-none" />
                                   ) : (
@@ -819,18 +819,18 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
                                   )}
                                 </div>
 
-                                <div className="rounded-lg border-2 border-border bg-[#111] px-3 py-2">
-                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">ALASAN WASTE</label>
+                                <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">ALASAN WASTE</label>
                                   <input type="text" placeholder="Alasan Waste" value={row.alasanPemusnahan} onChange={(e) => updateRow(station, row.id, { alasanPemusnahan: e.target.value.toUpperCase() })} className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-dim" />
                                 </div>
 
-                                <div className="md:col-span-2 rounded-lg border-2 border-border bg-[#111] px-3 py-2">
-                                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#555]">METODE MUSNAH</label>
+                                <div className="md:col-span-2 rounded-lg border border-border bg-surface px-3 py-2">
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">METODE MUSNAH</label>
                                   <select value={row.metodePemusnahan} onChange={(e) => updateRow(station, row.id, { metodePemusnahan: e.target.value })} className="w-full bg-transparent text-sm text-text-primary outline-none">{METHODS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
                                 </div>
 
-                                <div className="md:col-span-2 rounded-lg border border-border bg-[#111] px-3 py-2 text-xs text-text-muted">
-                                  Satuan default: <span className="font-bold text-text-primary">{row.unit || '-'}</span>
+                                <div className="md:col-span-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                                  Satuan default: <span className="font-medium text-text-primary">{row.unit || '-'}</span>
                                 </div>
                               </div>
                             )}
@@ -840,7 +840,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
                     </div>
 
                     <div className="mt-4 border-t border-border pt-4">
-                      <button type="button" onClick={() => addRow(station)} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#333] bg-transparent py-3 text-sm font-bold text-text-muted transition hover:border-primary hover:text-primary"><Plus size={16} /> Tambah Item</button>
+                      <button type="button" onClick={() => addRow(station)} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-transparent py-3 text-sm font-medium text-text-muted transition hover:border-brand-500 hover:text-brand-500"><Plus size={16} /> Tambah Item</button>
                     </div>
                   </div>
                 )}
@@ -849,20 +849,20 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
           })}
 
           {testerMode && (
-            <section className="rounded-xl border-2 border-border bg-[#111] shadow-nb-md">
+            <section className="rounded-xl border border-border bg-surface shadow-theme-xs">
               <button type="button" onClick={() => setTesterCollapsed((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 text-left">
                 <div>
-                  <h2 className="text-sm font-black text-text-primary">Tester Checklist</h2>
+                  <h2 className="text-sm font-semibold text-text-primary">Tester Checklist</h2>
                   <p className="text-[11px] text-text-muted">Default normal, edit kalo ada issue aja.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-black text-warning">{testerIssueCount} issue</span>
+                  <span className="rounded-full border border-warning-200 bg-warning-50 px-2 py-0.5 text-[10px] font-semibold text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400">{testerIssueCount} issue</span>
                   <ChevronDown size={16} className={`text-text-muted transition-transform ${testerCollapsed ? '' : 'rotate-180'}`} />
                 </div>
               </button>
               {!testerCollapsed && (
                 <div className="border-t border-border px-4 pb-4 pt-3">
-                  <div className="space-y-2">{TESTER_ITEMS.map((item) => <label key={item.name} className="flex items-center justify-between rounded-lg border border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"><div><p className="font-bold">{item.name}</p><p className="text-[11px] text-text-muted">{item.station}</p></div><input type="checkbox" checked={testerChecks[item.name] ?? true} onChange={(e) => setTesterChecks((prev) => ({ ...prev, [item.name]: e.target.checked }))} /></label>)}</div>
+                  <div className="space-y-2">{TESTER_ITEMS.map((item) => <label key={item.name} className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"><div><p className="font-medium">{item.name}</p><p className="text-[11px] text-text-muted">{item.station}</p></div><input type="checkbox" checked={testerChecks[item.name] ?? true} onChange={(e) => setTesterChecks((prev) => ({ ...prev, [item.name]: e.target.checked }))} /></label>)}</div>
                 </div>
               )}
             </section>
@@ -882,13 +882,13 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
               }
             }
             setStep('preview')
-          }} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-warning py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg">Cek & Preview <ChevronRight size={16} /></button>
+          }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 py-4 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">Cek & Preview <ChevronRight size={16} /></button>
         </section>
       )}
 
       {step === 'preview' && (
         <section className="space-y-4">
-          <div className="rounded-xl border-2 border-border bg-[#111] px-4 py-3 shadow-nb-md">
+          <div className="rounded-xl border border-border bg-surface px-4 py-3 shadow-theme-xs">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
               <span>Tanggal: <strong className="text-text-primary">{businessDate}</strong></span>
               <span>Shift: <strong className="text-text-primary">{shift}</strong></span>
@@ -904,24 +904,24 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             const stationRows = rowsByStation[station].filter((r) => r.namaProduk.trim() !== '')
             if (!stationRows.length) return null
             return (
-              <div key={station} className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md">
-                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-black text-text-primary">{station}</h3><span className="text-xs text-text-muted">{stationRows.length} item</span></div>
-                <div className="mb-3 flex flex-wrap gap-2">{stationRows.map((row, idx) => <span key={idx} className="rounded-md border border-border bg-[#0d0d0d] px-2 py-1 text-[11px] text-text-muted">{row.namaProduk} <strong className="text-text-primary">×{row.jumlahProduk}</strong> {row.unit}</span>)}</div>
+              <div key={station} className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold text-text-primary">{station}</h3><span className="text-xs text-text-muted">{stationRows.length} item</span></div>
+                <div className="mb-3 flex flex-wrap gap-2">{stationRows.map((row, idx) => <span key={idx} className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-text-muted">{row.namaProduk} <strong className="text-text-primary">×{row.jumlahProduk}</strong> {row.unit}</span>)}</div>
                 <MultiFileUpload files={filesByStation[station] || []} onChange={(f) => setFilesByStation((prev) => ({ ...prev, [station]: f }))} />
               </div>
             )
           })}
 
           {testerMode && (
-            <div className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-md"><h3 className="mb-3 text-sm font-black text-text-primary">Checklist Tester</h3><div className="space-y-2">{TESTER_ITEMS.map((item) => <div key={item.name} className="rounded-lg border border-border bg-[#0d0d0d] px-3 py-2 text-xs text-text-muted"><div className="mb-1 font-bold text-text-primary">{item.name}</div><div>Status: <span className={testerChecks[item.name] ?? true ? 'text-success' : 'text-warning'}>{testerChecks[item.name] ?? true ? 'OK' : 'Kendala'}</span></div></div>)}</div></div>
+            <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs"><h3 className="mb-3 text-sm font-semibold text-text-primary">Checklist Tester</h3><div className="space-y-2">{TESTER_ITEMS.map((item) => <div key={item.name} className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-text-muted"><div className="mb-1 font-medium text-text-primary">{item.name}</div><div>Status: <span className={testerChecks[item.name] ?? true ? 'text-success-600 dark:text-success-400' : 'text-warning-600 dark:text-warning-400'}>{testerChecks[item.name] ?? true ? 'OK' : 'Kendala'}</span></div></div>)}</div></div>
           )}
 
-          <button type="button" onClick={handleSubmit} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#000] bg-success py-4 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg disabled:opacity-50">{loading ? <ButtonLoadingSpinner /> : null}{loading ? 'Nyimpen...' : `Kirim ${testerMode ? 'Tester' : `${selectedStations.length} Station`}`}</button>
+          <button type="button" onClick={handleSubmit} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg bg-success-500 py-4 text-sm font-medium text-white shadow-theme-xs transition hover:bg-success-600 disabled:opacity-50">{loading ? <ButtonLoadingSpinner /> : null}{loading ? 'Nyimpen...' : `Kirim ${testerMode ? 'Tester' : `${selectedStations.length} Station`}`}</button>
         </section>
       )}
 
       {step === 'success' && (
-        <section className="rounded-xl border-2 border-success/30 bg-success/10 p-6 text-center shadow-nb-md"><div className="mb-3 flex justify-center"><CheckCircle2 size={48} className="text-success" /></div><h2 className="mb-2 text-xl font-black text-success">Mantap, Tersimpan!</h2><p className="mb-5 text-sm text-text-primary">{successMessage}</p><div className="mb-6 space-y-1 text-xs text-text-muted"><p>Tanggal: {businessDate}</p><p>Shift: {shift}</p><p>Station: {testerMode ? 'TESTER' : selectedStations.join(', ')}</p><p>QC: {qcName || '-'}</p><p>Manager: {managerName || '-'}</p></div><button type="button" onClick={resetForm} className="rounded-lg border-2 border-[#000] bg-warning px-6 py-3 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg">Shift Baru</button></section>
+        <section className="rounded-xl border border-success-200 bg-success-50 p-6 text-center shadow-theme-xs dark:border-success-500/20 dark:bg-success-500/10"><div className="mb-3 flex justify-center"><CheckCircle2 size={48} className="text-success-500" /></div><h2 className="mb-2 text-xl font-semibold text-success-700 dark:text-success-400">Mantap, Tersimpan!</h2><p className="mb-5 text-sm text-text-primary">{successMessage}</p><div className="mb-6 space-y-1 text-xs text-text-muted"><p>Tanggal: {businessDate}</p><p>Shift: {shift}</p><p>Station: {testerMode ? 'TESTER' : selectedStations.join(', ')}</p><p>QC: {qcName || '-'}</p><p>Manager: {managerName || '-'}</p></div><button type="button" onClick={resetForm} className="rounded-lg bg-brand-500 px-6 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">Shift Baru</button></section>
       )}
     </div>
   )
@@ -930,10 +930,10 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
 
 
 function PasteIssues({ title, issues, tone }: { title: string; issues: PasteIssue[]; tone: 'danger' | 'warning' }) {
-  const toneClass = tone === 'danger' ? 'border-danger/30 bg-danger/10 text-danger' : 'border-warning/30 bg-warning/10 text-warning'
+  const toneClass = tone === 'danger' ? 'border-error-200 bg-error-50 text-error-700 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-400' : 'border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400'
   return (
     <div className={`rounded-lg border px-3 py-3 text-xs ${toneClass}`}>
-      <p className="mb-1 font-black">{title}</p>
+      <p className="mb-1 font-semibold">{title}</p>
       <ul className="list-disc space-y-1 pl-4">
         {issues.map((issue, index) => <li key={`${issue.line}-${index}`}>{issue.line > 0 ? `Baris ${issue.line}: ` : ''}{issue.message}</li>)}
       </ul>
