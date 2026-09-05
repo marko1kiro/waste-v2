@@ -99,6 +99,35 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_station_items_store ON station_items(store_id)`
   log('Composite indexes ready')
 
+  // 5b. Multi-store unique constraints
+  // daily_records: UNIQUE(business_date, shift) -> UNIQUE(store_id, business_date, shift)
+  await sql`ALTER TABLE daily_records DROP CONSTRAINT IF EXISTS daily_records_business_date_shift_key`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_records_store_date_shift ON daily_records(store_id, business_date, shift)`
+  log('daily_records unique per store')
+
+  // waste_submission_locks: tambah store_id + unique per store
+  await sql`ALTER TABLE waste_submission_locks ADD COLUMN IF NOT EXISTS store_id INTEGER REFERENCES stores(id)`
+  await sql(`UPDATE waste_submission_locks SET store_id = $1 WHERE store_id IS NULL`, [ckrbulId])
+  await sql(`ALTER TABLE waste_submission_locks ALTER COLUMN store_id SET NOT NULL`)
+  await sql(`CREATE INDEX IF NOT EXISTS idx_wsl_store_date_shift ON waste_submission_locks(store_id, business_date, shift)`)
+  log('waste_submission_locks store-scoped')
+
+  // waste_submission_locks: PK lama (business_date, shift, station) blokir cross-store -> ganti PK ber-store
+  const oldPk = await sql`
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'waste_submission_locks'::regclass
+      AND conname = 'waste_submission_locks_pkey'
+      AND pg_get_constraintdef(oid) NOT LIKE '%store_id%'
+    LIMIT 1
+  `
+  if (oldPk.length) {
+    await sql`ALTER TABLE waste_submission_locks DROP CONSTRAINT waste_submission_locks_pkey`
+    await sql`ALTER TABLE waste_submission_locks ADD CONSTRAINT waste_submission_locks_pkey PRIMARY KEY (store_id, business_date, shift, station)`
+    log('waste_submission_locks PK replaced with store-scoped PK')
+  } else {
+    log('waste_submission_locks PK already store-scoped')
+  }
+
   // 6. Validasi akhir
   const checks = await sql`
     SELECT
