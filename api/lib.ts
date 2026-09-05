@@ -319,26 +319,45 @@ export interface GroupedShiftData {
   grouped: Record<string, Array<Record<string, unknown>>>
 }
 
-export async function fetchDayGrouped(date: string): Promise<GroupedShiftData & { raw: Array<Record<string, unknown>> }> {
+export async function fetchDayGrouped(date: string, storeId?: number | null): Promise<GroupedShiftData & { raw: Array<Record<string, unknown>> }> {
   const sql = getSQL()
-  const rows = await sql`
-    SELECT
-      shift, store_name, kategori_induk, nama_produk, kode_produk,
-      jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan,
-      jam_tanggal_pemusnahan, paraf_qc_url, paraf_qc_name,
-      paraf_manager_url, paraf_manager_name, dokumentasi_urls,
-      submitted_by, created_at
-    FROM product_destructions
-    WHERE business_date::text = ${date}
-    ORDER BY
-      CASE shift
-        WHEN 'OPENING' THEN 1
-        WHEN 'MIDDLE' THEN 2
-        WHEN 'CLOSING' THEN 3
-        WHEN 'MIDNIGHT' THEN 4
-      END,
-      created_at ASC
-  `
+  const rows = storeId === null || storeId === undefined
+    ? await sql`
+      SELECT
+        shift, store_name, kategori_induk, nama_produk, kode_produk,
+        jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan,
+        jam_tanggal_pemusnahan, paraf_qc_url, paraf_qc_name,
+        paraf_manager_url, paraf_manager_name, dokumentasi_urls,
+        submitted_by, created_at
+      FROM product_destructions
+      WHERE business_date::text = ${date}
+      ORDER BY
+        CASE shift
+          WHEN 'OPENING' THEN 1
+          WHEN 'MIDDLE' THEN 2
+          WHEN 'CLOSING' THEN 3
+          WHEN 'MIDNIGHT' THEN 4
+        END,
+        created_at ASC
+    `
+    : await sql`
+      SELECT
+        shift, store_name, kategori_induk, nama_produk, kode_produk,
+        jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan,
+        jam_tanggal_pemusnahan, paraf_qc_url, paraf_qc_name,
+        paraf_manager_url, paraf_manager_name, dokumentasi_urls,
+        submitted_by, created_at
+      FROM product_destructions
+      WHERE business_date::text = ${date} AND store_id = ${storeId}
+      ORDER BY
+        CASE shift
+          WHEN 'OPENING' THEN 1
+          WHEN 'MIDDLE' THEN 2
+          WHEN 'CLOSING' THEN 3
+          WHEN 'MIDNIGHT' THEN 4
+        END,
+        created_at ASC
+    `
 
   const grouped: Record<string, Array<Record<string, unknown>>> = {
     OPENING: [], MIDDLE: [], CLOSING: [], MIDNIGHT: [],
@@ -369,7 +388,10 @@ export async function fetchDayGrouped(date: string): Promise<GroupedShiftData & 
   }
 
   let storeName = 'BEKASI KP. BULU'
-  if (rows.length > 0 && rows[0].store_name) {
+  if (storeId != null) {
+    const storeRow = await sql`SELECT name FROM stores WHERE id = ${storeId} LIMIT 1`
+    if (storeRow.length) storeName = String(storeRow[0].name)
+  } else if (rows.length > 0 && rows[0].store_name) {
     storeName = rows[0].store_name
   }
 

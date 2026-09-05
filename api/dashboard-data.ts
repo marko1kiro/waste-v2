@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getSQL, authenticateRequest, dashboardQuerySchema } from './lib.js'
+import { getSQL, authenticateRequest, dashboardQuerySchema, resolveStoreContext, getRequestedStoreId } from './lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -9,6 +9,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const payload = await authenticateRequest(req)
   if (!payload) {
     return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  let storeId: number | null
+  try {
+    const resolved = resolveStoreContext({ role: payload.role, storeId: payload.storeId ?? null }, getRequestedStoreId(req))
+    storeId = resolved.storeId
+  } catch {
+    return res.status(403).json({ error: 'Store context missing' })
   }
 
   const parsed = dashboardQuerySchema.safeParse(req.query)
@@ -40,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
                jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
         FROM product_destructions
-        WHERE business_date >= ${startDate} AND business_date <= ${endDate}
+        WHERE business_date >= ${startDate} AND business_date <= ${endDate} AND store_id = ${storeId ?? 0}
         ORDER BY business_date DESC, created_at ASC
       `
     } else {
@@ -48,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
                jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
         FROM product_destructions
-        WHERE business_date >= CURRENT_DATE - INTERVAL '30 days'
+        WHERE business_date >= CURRENT_DATE - INTERVAL '30 days' AND store_id = ${storeId ?? 0}
         ORDER BY business_date DESC, created_at ASC
       `
     }
