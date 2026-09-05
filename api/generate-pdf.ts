@@ -3,6 +3,7 @@ import { Readable } from 'stream'
 import { get } from '@vercel/blob'
 import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId } from './lib.js'
 import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from './google-drive.js'
+import { downloadNeutralDrivePdf, findNeutralDrivePdf, GoogleDriveNeutralError, uploadNeutralDrivePdf } from './google-drive-neutral.js'
 import { buildPdfFilename, renderDailyPdf, type PdfItem } from '../shared/pdf-renderer.js'
 import { resolvePdfSignatures, type SignaturePersonnel } from '../shared/pdf-signature-resolver.js'
 
@@ -97,13 +98,14 @@ function streamGoogleDrivePdf(res: VercelResponse, filename: string, response: R
   return res
 }
 
-async function claimDriveGeneration(date: string): Promise<boolean> {
+async function claimDriveGeneration(date: string, storeId: number): Promise<boolean> {
   // daily_records is the source of truth for MIDNIGHT completion. Its existing PDF
   // fields double as a short server-side lease, so simultaneous functions do not upload duplicates.
   const rows = await getSQL()`
     UPDATE daily_records
     SET pdf_generated = TRUE, pdf_generated_at = NOW()
     WHERE business_date::text = ${date}
+      AND store_id = ${storeId}
       AND shift = 'MIDNIGHT'
       AND done = TRUE
       AND (pdf_generated = FALSE OR pdf_generated_at IS NULL OR pdf_generated_at < NOW() - INTERVAL '2 minutes')
@@ -112,34 +114,40 @@ async function claimDriveGeneration(date: string): Promise<boolean> {
   return rows.length === 1
 }
 
-async function releaseDriveGenerationClaim(date: string): Promise<void> {
+async function releaseDriveGenerationClaim(date: string, storeId: number): Promise<void> {
   await getSQL()`
     UPDATE daily_records
     SET pdf_generated = FALSE, pdf_generated_at = NULL
-    WHERE business_date::text = ${date} AND shift = 'MIDNIGHT' AND done = TRUE
+    WHERE business_date::text = ${date} AND store_id = ${storeId} AND shift = 'MIDNIGHT' AND done = TRUE
   `
 }
 
-async function markDriveGenerationComplete(date: string): Promise<void> {
+async function markDriveGenerationComplete(date: string, storeId: number): Promise<void> {
   await getSQL()`
     UPDATE daily_records
     SET pdf_generated = TRUE, pdf_generated_at = NOW()
-    WHERE business_date::text = ${date} AND shift = 'MIDNIGHT' AND done = TRUE
+    WHERE business_date::text = ${date} AND store_id = ${storeId} AND shift = 'MIDNIGHT' AND done = TRUE
   `
 }
 
-async function waitForGoogleDrivePdf(filename: string) {
+async function waitForDrivePdf(filename: string, store: { drive_account: string; drive_folder_id: string }) {
   const delays = [0, 500, 900, 1400, 2000, 2800]
   for (const delay of delays) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-    const existing = await findGoogleDrivePdf(filename)
+    const existing = store.drive_account === 'legacy'
+      ? await findGoogleDrivePdf(filename)
+      : await findNeutralDrivePdf(filename, store.drive_folder_id)
     if (existing) return existing
   }
   return null
 }
 
+function isDriveError(error: unknown): error is GoogleDriveBackupError | GoogleDriveNeutralError {
+  return error instanceof GoogleDriveBackupError || error instanceof GoogleDriveNeutralError
+}
+
 function driveFailureMessage(error: unknown): string {
-  if (error instanceof GoogleDriveBackupError && error.kind === 'configuration') {
+  if (isDriveError(error) && error.kind === 'configuration') {
     return 'Google Drive backup belum dikonfigurasi. Hubungi administrator untuk melengkapi kredensial Google Drive.'
   }
   return 'Google Drive backup wajib untuk PDF dengan shift MIDNIGHT selesai, tetapi Drive sedang tidak tersedia. Coba lagi beberapa saat atau hubungi administrator.'
@@ -178,40 +186,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ])
     const store = storeRows[0]
     if (!store) return res.status(404).json({ error: 'Store tidak ditemukan' })
-    if (store.drive_account !== 'legacy') {
-      // Neutral-account Drive path untuk resto baru: dirilis di fase berikutnya.
-      return res.status(501).json({ error: 'PDF untuk resto ini belum tersedia. Menunggu integrasi Drive per-resto.' })
-    }
+    const isNeutral = store.drive_account !== 'legacy'
     const config = (configRows[0]?.extra_config as Record<string, unknown> | undefined) || {}
     const filename = buildPdfFilename(String(config.store_code || 'STORE'), date)
+    const driveStore = { drive_account: String(store.drive_account), drive_folder_id: String(store.drive_folder_id || '') }
 
     // Preserve the current on-demand behavior for dates that are not complete.
     // In particular, do not even validate credentials or make a Google request here.
     if (midnightComplete) {
       let existing
       try {
-        existing = await findGoogleDrivePdf(filename)
+        existing = isNeutral
+          ? await findNeutralDrivePdf(filename, driveStore.drive_folder_id)
+          : await findGoogleDrivePdf(filename)
         if (existing) {
-          const drivePdf = await downloadGoogleDrivePdf(existing.id)
-          void markDriveGenerationComplete(date).catch((error) => console.error('[generate-pdf] Could not update Drive PDF status:', error))
+          const drivePdf = isNeutral
+            ? await downloadNeutralDrivePdf(existing.id)
+            : await downloadGoogleDrivePdf(existing.id)
+          void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update Drive PDF status:', error))
           return streamGoogleDrivePdf(res, filename, drivePdf)
         }
-        driveGenerationClaimed = await claimDriveGeneration(date)
+        driveGenerationClaimed = await claimDriveGeneration(date, storeId)
         if (!driveGenerationClaimed) {
-          const uploadedByAnotherRequest = await waitForGoogleDrivePdf(filename)
+          const uploadedByAnotherRequest = await waitForDrivePdf(filename, driveStore)
           if (uploadedByAnotherRequest) {
-            const drivePdf = await downloadGoogleDrivePdf(uploadedByAnotherRequest.id)
+            const drivePdf = isNeutral
+              ? await downloadNeutralDrivePdf(uploadedByAnotherRequest.id)
+              : await downloadGoogleDrivePdf(uploadedByAnotherRequest.id)
             return streamGoogleDrivePdf(res, filename, drivePdf)
           }
           return res.status(503).json({ error: 'PDF sedang diamankan ke Google Drive oleh request lain. Coba download lagi dalam beberapa detik.' })
         }
       } catch (error) {
         console.error('[generate-pdf] Google Drive lookup failed:', error)
-        if (driveGenerationClaimed) await releaseDriveGenerationClaim(date).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
+        if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
         driveGenerationClaimed = false
         return res.status(503).json({ error: driveFailureMessage(error) })
       }
     }
+
+    // Preserve the current on-demand behavior for dates that are not complete.
+    // In particular, do not even validate credentials or make a Google request here.
 
     const stats = resolvePdfSignatures(grouped as unknown as Record<string, PdfItem[]>, personnelRows as SignaturePersonnel[])
     const signatureUrls = [...new Set(Object.values(grouped).flatMap((items) => items.flatMap((item) => [String(item.parafQC || ''), String(item.parafManager || '')])).filter(Boolean))]
@@ -221,7 +236,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       documentationAssets = await loadAssets(documentationUrls)
     } catch (error) {
       console.error('[generate-pdf] Required referenced image unavailable:', error)
-      if (driveGenerationClaimed) await releaseDriveGenerationClaim(date).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
+      if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
       return res.status(502).json({ error: 'Required PDF image asset unavailable' })
     }
     const signatureAssets = await loadAssets(signatureUrls, true)
@@ -242,12 +257,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (midnightComplete) {
       try {
-        await uploadGoogleDrivePdf(filename, Buffer.from(pdf))
+        if (isNeutral) await uploadNeutralDrivePdf(filename, Buffer.from(pdf), driveStore.drive_folder_id)
+        else await uploadGoogleDrivePdf(filename, Buffer.from(pdf))
         driveGenerationClaimed = false // Keep the successful lease/status for future requests.
-        await markDriveGenerationComplete(date).catch((error) => console.error('[generate-pdf] Could not finalize Drive PDF status:', error))
+        await markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not finalize Drive PDF status:', error))
       } catch (error) {
         console.error('[generate-pdf] Google Drive upload failed:', error)
-        if (driveGenerationClaimed) await releaseDriveGenerationClaim(date).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
+        if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
         driveGenerationClaimed = false
         return res.status(503).json({ error: driveFailureMessage(error) })
       }
@@ -255,7 +271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return sendPdf(res, filename, pdf, midnightComplete ? 'generated-drive' : 'generated-on-demand')
   } catch (error) {
-    if (driveGenerationClaimed) await releaseDriveGenerationClaim(date).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
+    if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
     console.error('[generate-pdf] Error:', error)
     return res.status(500).json({ error: 'Internal server error' })
   }
