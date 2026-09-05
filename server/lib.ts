@@ -231,7 +231,19 @@ export async function authenticateRequest(req: any, allowApiKey = false): Promis
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null
   const token = authHeader.slice(7)
   const jwt = verifyToken(token)
-  if (jwt) return jwt
+  if (jwt) {
+    // Token legacy (pre-multi-resto) tidak bawa store_id (null/undefined)
+    // -> resolve dari users table. Super admin resolve ke null = cross-resto (sama benar).
+    if (jwt.store_id != null) return { ...jwt, storeId: jwt.store_id }
+    try {
+      const sql = getSQL()
+      const rows = await sql`SELECT store_id FROM users WHERE username = ${jwt.sub} LIMIT 1`
+      const storeId = rows.length && rows[0].store_id !== null ? Number(rows[0].store_id) : null
+      return { ...jwt, store_id: storeId, storeId }
+    } catch {
+      return { ...jwt, store_id: null, storeId: null }
+    }
+  }
   if (!allowApiKey || !token.startsWith('awas_live_')) return null
   const sql = getSQL()
   const rows = await sql`

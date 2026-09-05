@@ -18,10 +18,10 @@ export function StoreSwitcher({ invalidateKeys }: { invalidateKeys?: readonly st
     staleTime: 5 * 60_000,
   })
   const stores = (data?.data || []).filter((s) => s.status === 'active')
-  const selected = getAdminStoreId()
+  const selected = getAdminStoreId() ?? stores[0]?.id ?? null
 
   function onChange(value: string) {
-    setAdminStoreId(value ? Number(value) : null)
+    setAdminStoreId(value ? Number(value) : (stores[0]?.id ?? null))
     if (invalidateKeys) {
       for (const key of invalidateKeys) qc.invalidateQueries({ queryKey: key })
     } else {
