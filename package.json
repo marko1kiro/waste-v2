@@ -22,7 +22,8 @@
     "check:offline-waste": "tsx scripts/check-offline-waste.ts",
     "check:photo-compression": "tsx scripts/check-photo-compression.ts",
     "check:waste-submit-progress": "tsx scripts/check-waste-submit-progress.ts",
-    "check:store-context": "tsx scripts/check-store-context.ts"
+    "check:store-context": "tsx scripts/check-store-context.ts",
+    "check:neutral-drive": "tsx scripts/check-neutral-drive.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
