@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 
 process.env.JWT_SECRET ||= 'check-store-context-test-secret-0123456789abcdef'
 
-const { createToken, verifyToken, resolveStoreContext } = await import('../api/lib.ts')
+const { createToken, verifyToken, resolveStoreContext } = await import('../server/lib.ts')
 
 // ── JWT store_id roundtrip ──────────────────────────────
 const plain = verifyToken(createToken('store', 'admin_store', 'User Store'))

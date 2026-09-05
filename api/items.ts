@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest, getSQL, validateItemPayload, resolveStoreContext, getRequestedStoreId } from './lib.js'
+import { authenticateRequest, getSQL, validateItemPayload, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505'

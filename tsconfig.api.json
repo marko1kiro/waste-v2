@@ -20,6 +20,6 @@
       "@shared/*": ["./shared/*"]
     }
   },
-  "include": ["api", "shared"],
+  "include": ["api", "server", "shared"],
   "exclude": ["node_modules"]
 }
