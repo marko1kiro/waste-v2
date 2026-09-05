@@ -39,23 +39,23 @@ export default function MobileBottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none pb-[env(safe-area-inset-bottom)] lg:hidden">
-      <div className="pointer-events-auto mx-3 mb-3 flex items-center justify-around rounded-2xl border-2 border-[#2a2a2a] bg-[#111]/95 px-2 py-2 shadow-nb-lg backdrop-blur-sm">
+      <div className="pointer-events-auto mx-3 mb-3 flex items-center justify-around rounded-2xl border border-border bg-surface/95 px-2 py-2 shadow-theme-lg backdrop-blur-sm">
         {navItems.map(({ href, label, icon: Icon, matchPaths }) => {
           const isActive = matchPaths.some((p) => (p === '/' ? location === '/' : location.startsWith(p)))
 
           if (href === '__qc_checklist__') {
             return (
-              <a key={href} href={qcChecklistUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-text-muted hover:text-text-primary">
+              <a key={href} href={qcChecklistUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-gray-400 transition-colors hover:text-text-primary">
                 <Icon size={20} strokeWidth={2} />
-                <span className="text-[9px] font-bold">{label}</span>
+                <span className="text-[9px] font-medium">{label}</span>
               </a>
             )
           }
 
           return (
-            <Link key={href} href={href} className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition ${isActive ? 'bg-warning/10 text-warning' : 'text-text-muted hover:text-text-primary'}`}>
+            <Link key={href} href={href} className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition-colors ${isActive ? 'text-brand-500' : 'text-gray-400 hover:text-text-primary'}`}>
               <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-[9px] font-bold">{label}</span>
+              <span className="text-[9px] font-medium">{label}</span>
             </Link>
           )
         })}
