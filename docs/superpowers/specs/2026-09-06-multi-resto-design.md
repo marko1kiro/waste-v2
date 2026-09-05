@@ -84,9 +84,9 @@ Ditambahkan (nullable dulu) + backfill ke CKRBUL + baru NOT NULL, pada:
 
 ## 8. Hemat Vercel (Opsi 1)
 
-1. **PDF resto baru render di browser** (`jspdf` sudah ada di deps) → server hanya menerima bytes + upload Drive (function pendek)
-2. **Polling `shift-status`** 30s → 60s (semua resto; bukan bagian logic PDF)
-3. **Catalog gak di-fetch untuk resto tanpa catalog** (features flag) → hemat query
+1. **Polling `shift-status`** 30s → 60s (semua resto; bukan bagian logic PDF) — **done**
+2. **Catalog gak di-fetch untuk resto tanpa catalog** (features flag, `enabled: catalogEnabled`) — **done (Fase 3)**
+3. **PDF resto baru render di browser** — **DEFERRED**: butuh duplikasi asset-loading client-side + endpoint upload baru + split lease logic. Nilai hemat baru terasa kalau volume resto baru tinggi; CKRBUL (heavy) memang wajib tetap server-side per batasan zona larangan. Implement saat ada resto baru aktif dengan traffic nyata.
 4. (Defer) Signed Blob URL untuk menghilangkan proxy `/api/signatures` — ditunda karena menyentuh URL tersimpan & renderer CKRBUL; revisi fase terpisah nanti bila perlu
 
 ## 9. Migrasi & Rollback

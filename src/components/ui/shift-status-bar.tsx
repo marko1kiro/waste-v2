@@ -14,7 +14,7 @@ export default function ShiftStatusBar() {
     queryKey: ['shift-status', businessDate],
     queryFn: () =>
       apiClient.fetch<ShiftStatusData>(`/api/get?action=shift-status&date=${businessDate}`),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   })
 
   const { data: tenantData } = useQuery<TenantConfigData>({
