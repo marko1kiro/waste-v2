@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { list } from '@vercel/blob'
-import { getSQL, authenticateRequest, shiftStatusQuerySchema } from './lib.js'
+import { getSQL, authenticateRequest, shiftStatusQuerySchema, resolveStoreContext, getRequestedStoreId } from './lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -12,6 +12,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  let storeId: number | null
+  try {
+    const resolved = resolveStoreContext({ role: payload.role, storeId: payload.storeId ?? null }, getRequestedStoreId(req))
+    storeId = resolved.storeId
+  } catch {
+    return res.status(403).json({ error: 'Store context missing' })
+  }
+
   const { action } = req.query as Record<string, string | undefined>
   const sql = getSQL()
 
@@ -19,18 +27,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { station } = req.query as Record<string, string | undefined>
 
     let rows
+    if (storeId === null) {
+      return res.status(400).json({ error: 'store_id wajib untuk station-items' })
+    }
     if (station) {
       rows = await sql`
         SELECT id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status
         FROM station_items
-        WHERE station = ${station.toUpperCase()} AND status = 'active'
+        WHERE store_id = ${storeId} AND station = ${station.toUpperCase()} AND status = 'active'
         ORDER BY sort_order ASC, nama_produk ASC
       `
     } else {
       rows = await sql`
         SELECT id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status
         FROM station_items
-        WHERE status = 'active'
+        WHERE store_id = ${storeId} AND status = 'active'
         ORDER BY station ASC, sort_order ASC, nama_produk ASC
       `
     }
@@ -47,18 +58,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { date } = parsed.data
 
     try {
-      const records = await sql`
-        SELECT shift, done, submitted_by, submitted_at
-        FROM daily_records
-        WHERE business_date::text = ${date}
-        ORDER BY
-          CASE shift
-            WHEN 'OPENING' THEN 1
-            WHEN 'MIDDLE' THEN 2
-            WHEN 'CLOSING' THEN 3
-            WHEN 'MIDNIGHT' THEN 4
-          END
-      `
+      const records = storeId === null
+        ? await sql`
+          SELECT shift, done, submitted_by, submitted_at
+          FROM daily_records
+          WHERE business_date::text = ${date}
+          ORDER BY
+            CASE shift
+              WHEN 'OPENING' THEN 1
+              WHEN 'MIDDLE' THEN 2
+              WHEN 'CLOSING' THEN 3
+              WHEN 'MIDNIGHT' THEN 4
+            END
+        `
+        : await sql`
+          SELECT shift, done, submitted_by, submitted_at
+          FROM daily_records
+          WHERE business_date::text = ${date} AND store_id = ${storeId}
+          ORDER BY
+            CASE shift
+              WHEN 'OPENING' THEN 1
+              WHEN 'MIDDLE' THEN 2
+              WHEN 'CLOSING' THEN 3
+              WHEN 'MIDNIGHT' THEN 4
+            END
+        `
 
       const shifts: Record<string, { done: boolean; submittedBy: string | null; submittedAt: string | null }> = {
         OPENING: { done: false, submittedBy: null, submittedAt: null },
