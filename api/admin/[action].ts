@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { del } from '@vercel/blob'
-import { apiKeyCreateStatement, apiKeyExpireStatement, createApiKey, decryptApiKey, encryptApiKey, getSQL, authenticateRequest, hashApiKey, hashPassword, logActivity, getClientIP, verifyPassword } from '../lib.js'
+import { apiKeyCreateStatement, apiKeyExpireStatement, createApiKey, decryptApiKey, encryptApiKey, getSQL, authenticateRequest, hashApiKey, hashPassword, logActivity, getClientIP, verifyPassword, resolveStoreContext, getRequestedStoreId, type ResolvedStore } from '../lib.js'
 
 // ─── Schemas ───────────────────────────────────────────
 const createPersonnelSchema = z.object({
@@ -44,15 +44,16 @@ const updateConfigSchema = z.object({
 
 // ─── Handlers ──────────────────────────────────────────
 
-async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload: any) {
+async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
   if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
+  if (store.storeId === null) return res.status(400).json({ error: 'store_id wajib untuk personnel' })
   const sql = getSQL()
 
   if (req.method === 'GET') {
     const rows = await sql`
       SELECT id, name, full_name, role, signature_url, status
       FROM personnel
-      WHERE status = 'active'
+      WHERE store_id = ${store.storeId} AND status = 'active'
       ORDER BY role, name
     `
     return res.status(200).json({ success: true, data: rows })
@@ -63,14 +64,14 @@ async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload:
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
     const { name, full_name, role, signature_url } = parsed.data
 
-    const existing = await sql`SELECT id FROM personnel WHERE name = ${name.toUpperCase()} AND status = 'active' LIMIT 1`
+    const existing = await sql`SELECT id FROM personnel WHERE store_id = ${store.storeId} AND name = ${name.toUpperCase()} AND status = 'active' LIMIT 1`
     if (existing.length > 0) {
       return res.status(409).json({ error: 'Short name sudah dipakai oleh personnel aktif.' })
     }
 
     const rows = await sql`
-      INSERT INTO personnel (name, full_name, role, signature_url, status)
-      VALUES (${name.toUpperCase()}, ${full_name}, ${role}, ${signature_url}, 'active')
+      INSERT INTO personnel (store_id, name, full_name, role, signature_url, status)
+      VALUES (${store.storeId}, ${name.toUpperCase()}, ${full_name}, ${role}, ${signature_url}, 'active')
       RETURNING id, name, full_name, role, signature_url, status
     `
     return res.status(201).json({ success: true, data: rows[0], message: 'Personnel berhasil dibuat.' })
@@ -81,7 +82,7 @@ async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload:
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
     const { id, name, full_name, role, signature_url, status } = parsed.data
 
-    const duplicate = await sql`SELECT id FROM personnel WHERE name = ${name.toUpperCase()} AND id <> ${id} AND status = 'active' LIMIT 1`
+    const duplicate = await sql`SELECT id FROM personnel WHERE store_id = ${store.storeId} AND name = ${name.toUpperCase()} AND id <> ${id} AND status = 'active' LIMIT 1`
     if (duplicate.length > 0) {
       return res.status(409).json({ error: 'Short name sudah dipakai oleh personnel aktif lain.' })
     }
@@ -94,9 +95,9 @@ async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload:
         role = ${role},
         signature_url = ${signature_url},
         status = ${status}
-      WHERE id = ${id}
+      WHERE id = ${id} AND store_id = ${store.storeId}
       RETURNING id, name, full_name, role, signature_url, status
-    `
+    ` 
     if (!rows.length) return res.status(404).json({ error: 'Personnel tidak ditemukan.' })
     return res.status(200).json({ success: true, data: rows[0], message: 'Personnel berhasil diupdate.' })
   }
@@ -107,7 +108,7 @@ async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload:
     const rows = await sql`
       UPDATE personnel
       SET status = 'inactive'
-      WHERE id = ${id} AND status <> 'inactive'
+      WHERE id = ${id} AND store_id = ${store.storeId} AND status <> 'inactive'
       RETURNING id
     `
     if (!rows.length) return res.status(404).json({ error: 'Personnel tidak ditemukan.' })
@@ -123,9 +124,10 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, payload: any
 
   if (req.method === 'GET') {
     const rows = await sql`
-      SELECT id, username, display_name, role, status, created_at
-      FROM users
-      ORDER BY role DESC, username ASC
+      SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.store_id, s.code AS store_code, s.name AS store_name
+      FROM users u
+      LEFT JOIN stores s ON s.id = u.store_id
+      ORDER BY u.role DESC, u.username ASC
     `
     return res.status(200).json({ success: true, data: rows })
   }
@@ -134,14 +136,23 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, payload: any
     const parsed = createUserSchema.safeParse(req.body)
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
     const { username, password, display_name, role } = parsed.data
+    const storeId = req.body?.store_id
+
+    if (role === 'admin_store') {
+      if (!Number.isInteger(storeId) || (storeId as number) <= 0) {
+        return res.status(400).json({ error: 'store_id wajib untuk admin_store.' })
+      }
+      const storeExists = await sql`SELECT id FROM stores WHERE id = ${storeId} LIMIT 1`
+      if (!storeExists.length) return res.status(400).json({ error: 'Store tidak ditemukan.' })
+    }
 
     const exists = await sql`SELECT id FROM users WHERE username = ${username.toLowerCase()} LIMIT 1`
     if (exists.length > 0) return res.status(409).json({ error: 'Username sudah dipakai.' })
 
     const password_hash = hashPassword(password)
     const rows = await sql`
-      INSERT INTO users (username, password_hash, display_name, role, status)
-      VALUES (${username.toLowerCase()}, ${password_hash}, ${display_name}, ${role}, 'active')
+      INSERT INTO users (username, password_hash, display_name, role, status, store_id)
+      VALUES (${username.toLowerCase()}, ${password_hash}, ${display_name}, ${role}, 'active', ${role === 'admin_store' ? storeId : null})
       RETURNING id, username, display_name, role, status, created_at
     `
     return res.status(201).json({ success: true, data: rows[0], message: 'Akun store berhasil dibuat.' })
@@ -213,14 +224,16 @@ async function handleUsers(req: VercelRequest, res: VercelResponse, payload: any
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-async function handleStationItems(req: VercelRequest, res: VercelResponse, payload: any) {
+async function handleStationItems(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
   if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
+  if (store.storeId === null) return res.status(400).json({ error: 'store_id wajib untuk station-items' })
   const sql = getSQL()
 
   if (req.method === 'GET') {
     const rows = await sql`
       SELECT id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status
       FROM station_items
+      WHERE store_id = ${store.storeId}
       ORDER BY station, sort_order, nama_produk
     `
     return res.status(200).json({ success: true, data: rows })
@@ -230,8 +243,8 @@ async function handleStationItems(req: VercelRequest, res: VercelResponse, paylo
     const { station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order } = req.body
     if (!station || !nama_produk) return res.status(400).json({ error: 'station dan nama_produk wajib diisi' })
     const rows = await sql`
-      INSERT INTO station_items (station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status)
-      VALUES (${String(station).toUpperCase()}, ${String(nama_produk).toUpperCase()}, ${unit || 'PCS'}, ${Boolean(kode_lot_wajib)}, ${Boolean(is_manual)}, ${sort_order || 0}, 'active')
+      INSERT INTO station_items (store_id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status)
+      VALUES (${store.storeId}, ${String(station).toUpperCase()}, ${String(nama_produk).toUpperCase()}, ${unit || 'PCS'}, ${Boolean(kode_lot_wajib)}, ${Boolean(is_manual)}, ${sort_order || 0}, 'active')
       RETURNING id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status
     `
     return res.status(201).json({ success: true, data: rows[0] })
@@ -250,7 +263,7 @@ async function handleStationItems(req: VercelRequest, res: VercelResponse, paylo
         is_manual = COALESCE(${is_manual ?? null}, is_manual),
         sort_order = COALESCE(${sort_order ?? null}, sort_order),
         status = COALESCE(${status ?? null}, status)
-      WHERE id = ${id}
+      WHERE id = ${id} AND store_id = ${store.storeId}
       RETURNING id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status
     `
     if (!rows.length) return res.status(404).json({ error: 'Item not found' })
@@ -260,18 +273,19 @@ async function handleStationItems(req: VercelRequest, res: VercelResponse, paylo
   if (req.method === 'DELETE') {
     const { id } = req.query as Record<string, string | undefined>
     if (!id) return res.status(400).json({ error: 'id wajib diisi' })
-    await sql`UPDATE station_items SET status = 'inactive' WHERE id = ${parseInt(id, 10)}`
+    await sql`UPDATE station_items SET status = 'inactive' WHERE id = ${parseInt(id, 10)} AND store_id = ${store.storeId}`
     return res.status(200).json({ success: true })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-async function handleTenantConfig(req: VercelRequest, res: VercelResponse, payload: any) {
+async function handleTenantConfig(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
+  if (store.storeId === null) return res.status(400).json({ error: 'store_id wajib untuk tenant-config' })
   const sql = getSQL()
 
   if (req.method === 'GET') {
-    const rows = await sql`SELECT id, store_name, extra_config, updated_at FROM tenant_configs LIMIT 1`
+    const rows = await sql`SELECT id, store_name, extra_config, updated_at FROM tenant_configs WHERE store_id = ${store.storeId} LIMIT 1`
     if (rows.length === 0) {
       return res.status(200).json({ success: true, data: { store_name: '', store_code: '', qc_checklist_url: '' } })
     }
@@ -295,14 +309,89 @@ async function handleTenantConfig(req: VercelRequest, res: VercelResponse, paylo
 
     const { store_name, store_code, qc_checklist_url } = parsed.data
 
-    const existing = await sql`SELECT id FROM tenant_configs LIMIT 1`
+    const existing = await sql`SELECT id FROM tenant_configs WHERE store_id = ${store.storeId} LIMIT 1`
     if (existing.length === 0) {
-      await sql`INSERT INTO tenant_configs (store_name, extra_config) VALUES (${store_name}, ${JSON.stringify({ store_code, qc_checklist_url })})`
+      await sql`INSERT INTO tenant_configs (store_id, store_name, extra_config) VALUES (${store.storeId}, ${store_name}, ${JSON.stringify({ store_code, qc_checklist_url })})`
     } else {
       await sql`UPDATE tenant_configs SET store_name = ${store_name}, extra_config = ${JSON.stringify({ store_code, qc_checklist_url })}, updated_at = NOW() WHERE id = ${existing[0].id}`
     }
 
     return res.status(200).json({ success: true, message: 'Konfigurasi store berhasil diupdate.' })
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' })
+}
+
+// ─── Stores Handler (Kelola Resto) ────────────────────
+
+const createStoreSchema = z.object({
+  code: z.string().trim().min(3, 'Kode store minimal 3 karakter').max(20, 'Kode store maksimal 20 karakter').regex(/^[A-Z0-9]+$/, 'Kode store huruf kapital/angka'),
+  name: z.string().trim().min(3, 'Nama store minimal 3 karakter').max(100, 'Nama store maksimal 100 karakter'),
+  drive_account: z.enum(['legacy', 'neutral']).default('neutral'),
+  drive_folder_id: z.string().trim().max(200).optional().default(''),
+  manual_mode: z.boolean().default(false),
+  catalog: z.boolean().default(false),
+})
+
+const updateStoreSchema = z.object({
+  id: z.number().int().positive('ID tidak valid'),
+  name: z.string().trim().min(3).max(100),
+  drive_folder_id: z.string().trim().max(200).optional().default(''),
+  manual_mode: z.boolean().default(false),
+  catalog: z.boolean().default(false),
+  status: z.enum(['active', 'inactive']).default('active'),
+})
+
+async function handleStores(req: VercelRequest, res: VercelResponse, payload: any) {
+  if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
+  const sql = getSQL()
+
+  if (req.method === 'GET') {
+    const rows = await sql`
+      SELECT s.id, s.code, s.name, s.drive_account, s.drive_folder_id, s.features, s.status, s.created_at,
+        (SELECT COUNT(*)::int FROM users u WHERE u.store_id = s.id) AS user_count,
+        (SELECT COUNT(*)::int FROM product_destructions pd WHERE pd.store_id = s.id) AS total_entries
+      FROM stores s
+      ORDER BY s.id ASC
+    `
+    return res.status(200).json({ success: true, data: rows })
+  }
+
+  if (req.method === 'POST') {
+    const parsed = createStoreSchema.safeParse(req.body)
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
+    const { code, name, drive_account, drive_folder_id, manual_mode, catalog } = parsed.data
+
+    const exists = await sql`SELECT id FROM stores WHERE code = ${code} LIMIT 1`
+    if (exists.length > 0) return res.status(409).json({ error: 'Kode store sudah dipakai.' })
+
+    const rows = await sql`
+      INSERT INTO stores (code, name, drive_account, drive_folder_id, features, status)
+      VALUES (${code}, ${name}, ${drive_account}, ${drive_folder_id}, ${JSON.stringify({ manual_mode, catalog })}, 'active')
+      RETURNING id, code, name, drive_account, drive_folder_id, features, status, created_at
+    `
+    await logActivity({ action: 'store_created', category: 'admin', username: payload.sub, details: { code, name }, status: 'success' })
+    return res.status(201).json({ success: true, data: rows[0], message: 'Resto berhasil dibuat.' })
+  }
+
+  if (req.method === 'PUT') {
+    const parsed = updateStoreSchema.safeParse(req.body)
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
+    const { id, name, drive_folder_id, manual_mode, catalog, status } = parsed.data
+
+    const rows = await sql`
+      UPDATE stores
+      SET
+        name = ${name},
+        drive_folder_id = ${drive_folder_id},
+        features = ${JSON.stringify({ manual_mode, catalog })}::jsonb,
+        status = ${status}
+      WHERE id = ${id}
+      RETURNING id, code, name, drive_account, drive_folder_id, features, status, created_at
+    `
+    if (!rows.length) return res.status(404).json({ error: 'Resto tidak ditemukan.' })
+    await logActivity({ action: 'store_updated', category: 'admin', username: payload.sub, details: { id, name, status }, status: 'success' })
+    return res.status(200).json({ success: true, data: rows[0], message: 'Resto berhasil diupdate.' })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })
@@ -363,8 +452,9 @@ async function handleApiKeys(req: VercelRequest, res: VercelResponse, payload: a
 
 // ─── History Handler ───────────────────────────────────
 
-async function handleHistory(req: VercelRequest, res: VercelResponse, payload: any) {
+async function handleHistory(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
   if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
+  if (store.storeId === null) return res.status(400).json({ error: 'store_id wajib untuk history' })
   const sql = getSQL()
 
   if (req.method === 'GET') {
@@ -377,7 +467,7 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
       SELECT shift, COUNT(*)::int AS item_count, MIN(submitted_by) AS submitted_by, MIN(created_at) AS created_at,
         array_agg(DISTINCT kategori_induk) AS stations
       FROM product_destructions
-      WHERE business_date::text = ${date}
+      WHERE business_date::text = ${date} AND store_id = ${store.storeId}
       GROUP BY shift
       ORDER BY
         CASE shift
@@ -404,7 +494,7 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
       return res.status(400).json({ error: 'Shift asal dan tujuan ga boleh sama' })
     }
 
-    const moved = await sql(`WITH guard AS (SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2 || ':' || $3))), source AS (SELECT station FROM waste_submission_locks, guard WHERE business_date = $1::date AND shift = $2), conflict AS (SELECT 1 FROM product_destructions WHERE business_date = $1::date AND shift = $3 LIMIT 1), moved_locks AS (UPDATE waste_submission_locks SET shift = $3 WHERE business_date = $1::date AND shift = $2 AND NOT EXISTS (SELECT 1 FROM conflict) RETURNING station), moved_products AS (UPDATE product_destructions SET shift = $3 WHERE business_date = $1::date AND shift = $2 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), reset_daily AS (UPDATE daily_records SET done = FALSE WHERE business_date = $1::date AND shift = $2 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), set_daily AS (INSERT INTO daily_records (business_date, shift, done, submitted_by, submitted_at) SELECT $1::date, $3, TRUE, $4, NOW() WHERE EXISTS (SELECT 1 FROM moved_locks) ON CONFLICT (business_date, shift) DO UPDATE SET done = TRUE, submitted_by = EXCLUDED.submitted_by, submitted_at = NOW() RETURNING id) SELECT (SELECT COUNT(*)::int FROM moved_products) AS count, EXISTS (SELECT 1 FROM conflict) AS conflict`, [date, from, to, payload.sub])
+    const moved = await sql(`WITH guard AS (SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2 || ':' || $3 || ':' || $5))), source AS (SELECT station FROM waste_submission_locks, guard WHERE business_date = $1::date AND shift = $2 AND store_id = $5), conflict AS (SELECT 1 FROM product_destructions WHERE business_date = $1::date AND shift = $3 AND store_id = $5 LIMIT 1), moved_locks AS (UPDATE waste_submission_locks SET shift = $3 WHERE business_date = $1::date AND shift = $2 AND store_id = $5 AND NOT EXISTS (SELECT 1 FROM conflict) RETURNING station), moved_products AS (UPDATE product_destructions SET shift = $3 WHERE business_date = $1::date AND shift = $2 AND store_id = $5 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), reset_daily AS (UPDATE daily_records SET done = FALSE WHERE business_date = $1::date AND shift = $2 AND store_id = $5 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), set_daily AS (INSERT INTO daily_records (store_id, business_date, shift, done, submitted_by, submitted_at) SELECT $5, $1::date, $3, TRUE, $4, NOW() WHERE EXISTS (SELECT 1 FROM moved_locks) ON CONFLICT (store_id, business_date, shift) DO UPDATE SET done = TRUE, submitted_by = EXCLUDED.submitted_by, submitted_at = NOW() RETURNING id) SELECT (SELECT COUNT(*)::int FROM moved_products) AS count, EXISTS (SELECT 1 FROM conflict) AS conflict`, [date, from, to, payload.sub, store.storeId])
     if (moved[0].conflict) return res.status(409).json({ error: `Shift ${to} tanggal ${date} udah ada datanya. Hapus dulu kalo mau ganti.` })
     const updated = [{ count: moved[0].count }]
 
@@ -433,7 +523,7 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
 
     const rows = await sql`
       SELECT dokumentasi_urls, kategori_induk FROM product_destructions
-      WHERE business_date::text = ${date} AND shift = ${shift}
+      WHERE business_date::text = ${date} AND shift = ${shift} AND store_id = ${store.storeId}
     `
 
     const blobUrls: string[] = []
@@ -457,9 +547,9 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
       }
     }
 
-    await sql`DELETE FROM product_destructions WHERE business_date::text = ${date} AND shift = ${shift}`
-    await sql`DELETE FROM waste_submission_locks WHERE business_date::text = ${date} AND shift = ${shift}`
-    await sql`DELETE FROM daily_records WHERE business_date::text = ${date} AND shift = ${shift}`
+    await sql`DELETE FROM product_destructions WHERE business_date::text = ${date} AND shift = ${shift} AND store_id = ${store.storeId}`
+    await sql`DELETE FROM waste_submission_locks WHERE business_date::text = ${date} AND shift = ${shift} AND store_id = ${store.storeId}`
+    await sql`DELETE FROM daily_records WHERE business_date::text = ${date} AND shift = ${shift} AND store_id = ${store.storeId}`
 
     const ip = getClientIP(req.headers as Record<string, string | string[] | undefined>)
     await logActivity({
@@ -484,20 +574,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const payload = await authenticateRequest(req)
   if (!payload) return res.status(401).json({ error: 'Unauthorized' })
 
+  let store: ResolvedStore
+  try {
+    store = resolveStoreContext({ role: payload.role, storeId: payload.storeId ?? null }, getRequestedStoreId(req))
+  } catch {
+    return res.status(403).json({ error: 'Store context missing' })
+  }
+
   const { action } = req.query as { action: string }
 
   try {
     switch (action) {
       case 'personnel':
-        return await handlePersonnel(req, res, payload)
+        return await handlePersonnel(req, res, payload, store)
       case 'users':
         return await handleUsers(req, res, payload)
       case 'station-items':
-        return await handleStationItems(req, res, payload)
+        return await handleStationItems(req, res, payload, store)
       case 'tenant-config':
-        return await handleTenantConfig(req, res, payload)
+        return await handleTenantConfig(req, res, payload, store)
+      case 'stores':
+        return await handleStores(req, res, payload)
       case 'history':
-        return await handleHistory(req, res, payload)
+        return await handleHistory(req, res, payload, store)
       case 'api-keys':
         return await handleApiKeys(req, res, payload)
       default:
