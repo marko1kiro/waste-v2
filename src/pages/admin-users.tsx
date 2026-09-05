@@ -12,14 +12,24 @@ interface UserRow {
   display_name: string
   role: 'admin_store' | 'super_admin'
   status: 'active' | 'inactive'
+  store_id?: number | null
+  store_code?: string | null
+  store_name?: string | null
   created_at: string
+}
+
+interface StoreOption {
+  id: number
+  code: string
+  name: string
+  status: string
 }
 
 const PAGE_SIZE = 8
 
 export default function AdminUsers() {
   const { user: currentUser } = useAuth()
-  const [form, setForm] = useState({ username: '', password: '', display_name: '', role: 'admin_store' })
+  const [form, setForm] = useState<{ username: string; password: string; display_name: string; role: 'admin_store' | 'super_admin'; store_id: number }>({ username: '', password: '', display_name: '', role: 'admin_store', store_id: 1 })
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin_store' | 'super_admin'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -33,6 +43,13 @@ export default function AdminUsers() {
     queryKey: ['admin-users'],
     queryFn: () => apiClient.fetch('/api/admin/users'),
   })
+
+  const { data: storesData } = useQuery<{ success: boolean; data: StoreOption[] }>({
+    queryKey: ['admin-stores'],
+    queryFn: () => apiClient.fetch('/api/admin/stores'),
+    staleTime: 5 * 60_000,
+  })
+  const storeOptions = (storesData?.data || []).filter((s) => s.status === 'active')
 
   const filteredRows = useMemo(() => {
     return (data?.data || []).filter((row) => {
@@ -55,9 +72,9 @@ export default function AdminUsers() {
     try {
       const res = await apiClient.fetch<{ success: boolean; message?: string }>('/api/admin/users', {
         method: 'POST',
-        body: JSON.stringify({ ...form, username: form.username.trim(), display_name: form.display_name.trim() }),
+        body: JSON.stringify({ ...form, store_id: form.role === 'admin_store' ? form.store_id : null, username: form.username.trim(), display_name: form.display_name.trim() }),
       })
-      setForm({ username: '', password: '', display_name: '', role: 'admin_store' })
+      setForm({ username: '', password: '', display_name: '', role: 'admin_store', store_id: storeOptions[0]?.id ?? 1 })
       await refetch()
       toast.success(res.message || 'Akun store udah dibuat')
     } catch (err) {
@@ -113,11 +130,12 @@ export default function AdminUsers() {
 
       <section className="mb-5 rounded-xl border border-border bg-surface p-4 shadow-theme-sm">
         <h2 className="mb-3 text-sm font-semibold text-text-primary">Tambah Akun</h2>
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
           <input placeholder="Username" value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" />
           <input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" />
           <input placeholder="Nama display" value={form.display_name} onChange={(e) => setForm((p) => ({ ...p, display_name: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" />
           <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as 'admin_store' | 'super_admin' }))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"><option value="admin_store">admin_store</option><option value="super_admin">super_admin</option></select>
+          <select value={form.store_id} onChange={(e) => setForm((p) => ({ ...p, store_id: Number(e.target.value) }))} disabled={form.role === 'super_admin'} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary disabled:opacity-50"><option value={0} disabled>Pilih resto</option>{storeOptions.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}</select>
           <button onClick={addUser} disabled={creating} className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:opacity-50">{creating ? 'Nyimpen...' : 'Tambah'}</button>
         </div>
       </section>

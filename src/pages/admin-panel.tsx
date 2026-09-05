@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link } from 'wouter'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
-import { Shield, Users, Boxes, BarChart3, ArrowRight, UserCog, Store, Loader2, History } from 'lucide-react'
+import { Shield, Users, Boxes, BarChart3, ArrowRight, UserCog, Store, Loader2, History, Building2 } from 'lucide-react'
 
 import type { DashboardData, TenantConfigData } from '@/lib/types'
 
@@ -62,8 +62,8 @@ export default function AdminPanel() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <QuickLink href="/admin/restos" title="Kelola Resto" desc="Tambah & atur resto baru" icon={<Building2 size={18} />} />
         <QuickLink href="/admin/personnel" title="Kelola Personnel" desc="QC, Manager, TTD" icon={<Users size={18} />} />
-        <QuickLink href="/admin/station-items" title="Kelola Station Items" desc="Catalog item per station" icon={<Boxes size={18} />} />
         <QuickLink href="/admin/users" title="Kelola Akun Store" desc="Akun login store/admin" icon={<UserCog size={18} />} />
         <QuickLink href="/admin/history" title="History & Delete" desc="Lihat & hapus data per shift" icon={<History size={18} />} />
         <QuickLink href="/dashboard" title="Lihat Analytics" desc="Trend, top products, breakdown" icon={<BarChart3 size={18} />} />

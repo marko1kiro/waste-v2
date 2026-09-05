@@ -1,6 +1,6 @@
 import { useLocation, Link } from 'wouter'
 import { useQuery } from '@tanstack/react-query'
-import { ClipboardList, BarChart3, FileText, User, Shield, Users, Boxes, UserCog, ClipboardCheck } from 'lucide-react'
+import { ClipboardList, BarChart3, FileText, User, Shield, UserCog, ClipboardCheck, Building2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/lib/api-client'
 
@@ -16,9 +16,8 @@ const STORE_NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   { href: '/', label: 'Panel', icon: Shield, matchPaths: ['/'] },
+  { href: '/admin/restos', label: 'Resto', icon: Building2, matchPaths: ['/admin/restos'] },
   { href: '/dashboard', label: 'Stats', icon: BarChart3, matchPaths: ['/dashboard'] },
-  { href: '/admin/personnel', label: 'QC/Mgr', icon: Users, matchPaths: ['/admin/personnel'] },
-  { href: '/admin/station-items', label: 'Items', icon: Boxes, matchPaths: ['/admin/station-items'] },
   { href: '/admin/users', label: 'Akun', icon: UserCog, matchPaths: ['/admin/users'] },
   { href: '/profile', label: 'Profil', icon: User, matchPaths: ['/profile'] },
 ] as const

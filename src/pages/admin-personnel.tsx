@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { fileToBase64 } from '@/lib/file-utils'
 import { toast } from '@/hooks/use-toast'
+import { StoreSwitcher } from '@/components/ui/store-switcher'
+import { getAdminStoreId, withStoreId } from '@/lib/admin-store'
 import ConfirmDialog from '@/components/ui/confirm-dialog'
 import { AuthenticatedImage } from '@/components/ui/authenticated-image'
 import { Search, Loader2 } from 'lucide-react'
@@ -34,7 +36,7 @@ export default function AdminPersonnel() {
 
   const { data, refetch, isLoading, error } = useQuery<{ success: boolean; data: PersonnelRow[] }>({
     queryKey: ['admin-personnel'],
-    queryFn: () => apiClient.fetch('/api/admin/personnel'),
+    queryFn: () => apiClient.fetch(withStoreId('/api/admin/personnel', getAdminStoreId())),
   })
 
   const rows = useMemo(() => {
@@ -67,7 +69,7 @@ export default function AdminPersonnel() {
         role: form.role,
         signature_url: form.signature_url,
       }
-      const res = await apiClient.fetch<{ success: boolean; message?: string }>('/api/admin/personnel', { method: 'POST', body: JSON.stringify(payload) })
+      const res = await apiClient.fetch<{ success: boolean; message?: string }>(withStoreId('/api/admin/personnel', getAdminStoreId()), { method: 'POST', body: JSON.stringify(payload) })
       setForm({ name: '', full_name: '', role: 'qc', signature_url: '' })
       await refetch()
       toast.success(res.message || 'Personnel udah ditambahin')
@@ -86,7 +88,7 @@ export default function AdminPersonnel() {
 
     setSavingId(person.id)
     try {
-      const res = await apiClient.fetch<{ success: boolean; message?: string }>('/api/admin/personnel', {
+      const res = await apiClient.fetch<{ success: boolean; message?: string }>(withStoreId('/api/admin/personnel', getAdminStoreId()), {
         method: 'PUT',
         body: JSON.stringify({
           ...person,
@@ -119,7 +121,7 @@ export default function AdminPersonnel() {
         method: 'POST',
         body: JSON.stringify({ filename: file.name, contentType: file.type, base64, folder: 'signatures' }),
       })
-      await apiClient.fetch('/api/admin/personnel', { method: 'PUT', body: JSON.stringify({ ...rows.find((p) => p.id === id), id, signature_url: uploaded.proxyUrl }) })
+      await apiClient.fetch(withStoreId('/api/admin/personnel', getAdminStoreId()), { method: 'PUT', body: JSON.stringify({ ...rows.find((p) => p.id === id), id, signature_url: uploaded.proxyUrl }) })
       await refetch()
       toast.success('Signature udah diupload')
     } catch (err) {
@@ -133,7 +135,7 @@ export default function AdminPersonnel() {
     if (!deleting) return
     setDeletingId(deleting.id)
     try {
-      const res = await apiClient.fetch<{ success: boolean; message?: string }>(`/api/admin/personnel?id=${deleting.id}`, { method: 'DELETE' })
+      const res = await apiClient.fetch<{ success: boolean; message?: string }>(withStoreId(`/api/admin/personnel?id=${deleting.id}`, getAdminStoreId()), { method: 'DELETE' })
       await refetch()
       toast.success(res.message || 'Personnel udah dihapus')
       setDeleting(null)
@@ -148,9 +150,12 @@ export default function AdminPersonnel() {
     <div className="mx-auto max-w-7xl py-2">
       <ConfirmDialog open={Boolean(deleting)} title="Hapus personnel?" description={`Personnel ${deleting?.full_name || deleting?.name || ''} akan dihapus.`} onConfirm={deactivatePersonnel} onCancel={() => setDeleting(null)} />
 
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-warning-600 dark:text-warning-400">Admin • Personnel</h1>
-        <p className="text-xs text-text-muted">Kelola QC & Manager.</p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">Admin • Personnel</h1>
+          <p className="text-xs text-text-muted">Kelola QC & Manager.</p>
+        </div>
+        <StoreSwitcher invalidateKeys={[['admin-personnel']]} />
       </div>
 
       <section className="mb-5 rounded-xl border border-border bg-surface p-4 shadow-theme-sm">
