@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getSQL, authenticateRequest, getDayDataQuerySchema, fetchDayGrouped } from './lib.js'
+import { getSQL, authenticateRequest, getDayDataQuerySchema, fetchDayGrouped, resolveStoreContext, getRequestedStoreId } from './lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -9,6 +9,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const payload = await authenticateRequest(req, true)
   if (!payload) {
     return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  let storeId: number | null
+  try {
+    const resolved = resolveStoreContext({ role: payload.role, storeId: payload.storeId ?? null }, getRequestedStoreId(req))
+    storeId = resolved.storeId
+  } catch {
+    return res.status(403).json({ error: 'Store context missing' })
   }
 
   const parsed = getDayDataQuerySchema.safeParse(req.query)
@@ -22,15 +30,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sql = getSQL()
 
     if (shift && station) {
+      if (storeId === null) return res.status(400).json({ error: 'store_id wajib' })
       const existing = await sql`
         SELECT 1 FROM waste_submission_locks
-        WHERE business_date::text = ${date} AND shift = ${shift} AND station = ${station}
+        WHERE store_id = ${storeId} AND business_date::text = ${date} AND shift = ${shift} AND station = ${station}
         LIMIT 1
       `
       return res.status(200).json({ isDuplicate: existing.length > 0 })
     }
 
-    const { storeName, grouped, raw } = await fetchDayGrouped(date)
+    const { storeName, grouped, raw } = await fetchDayGrouped(date, storeId)
 
     return res.status(200).json({
       success: true,
