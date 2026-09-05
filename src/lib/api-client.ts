@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'waste_app_token'
 const USER_KEY = 'waste_app_user'
+const STORE_KEY = 'waste_app_store'
 const LOGIN_TIME_KEY = 'waste_app_login_time'
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -7,6 +8,16 @@ export interface AuthUser {
   username: string
   display_name: string
   role: 'super_admin' | 'admin_store'
+  store_id?: number | null
+}
+
+export interface StoreInfo {
+  id: number
+  code: string
+  name: string
+  drive_account: 'legacy' | 'neutral'
+  features: { manual_mode: boolean; catalog: boolean }
+  status: string
 }
 
 function getToken(): string | null {
@@ -31,6 +42,21 @@ function getUser(): AuthUser | null {
   }
 }
 
+function setStore(store: StoreInfo | null): void {
+  if (store === null) localStorage.removeItem(STORE_KEY)
+  else localStorage.setItem(STORE_KEY, JSON.stringify(store))
+}
+
+function getStore(): StoreInfo | null {
+  const raw = localStorage.getItem(STORE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as StoreInfo
+  } catch {
+    return null
+  }
+}
+
 function setLoginTime(time: number): void {
   localStorage.setItem(LOGIN_TIME_KEY, String(time))
 }
@@ -44,6 +70,7 @@ function getLoginTime(): number | null {
 function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  localStorage.removeItem(STORE_KEY)
   localStorage.removeItem(LOGIN_TIME_KEY)
 }
 
@@ -126,6 +153,8 @@ export const apiClient = {
   setToken,
   setUser,
   getUser,
+  setStore,
+  getStore,
   setLoginTime,
   getLoginTime,
   clearAuth,

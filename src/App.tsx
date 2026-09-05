@@ -1,6 +1,7 @@
 import { lazy, Suspense, Component, type ReactNode, type ErrorInfo, useEffect } from 'react'
 import { Route, Switch, useLocation } from 'wouter'
 import { useAuth } from './contexts/AuthContext'
+import { canManual } from './lib/store-features'
 import LoginForm from './components/ui/login-form'
 import AppLayout from './components/ui/app-layout'
 import { Toaster } from './components/ui/toaster'
@@ -85,8 +86,9 @@ function AdminRouter() {
 }
 
 export default function App() {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, store } = useAuth()
   const [location, navigate] = useLocation()
+  const manualBlocked = !canManual(store)
 
   useEffect(() => {
     if (!isAuthenticated || !user) return
@@ -98,8 +100,13 @@ export default function App() {
 
     if (user.role === 'super_admin' && (location === '/manual-waste' || location === '/auto-waste' || location === '/paste-waste' || location === '/pdf')) {
       navigate('/')
+      return
     }
-  }, [isAuthenticated, user, location, navigate])
+
+    if (manualBlocked && (location === '/manual-waste' || location === '/auto-waste')) {
+      navigate('/paste-waste')
+    }
+  }, [isAuthenticated, user, location, navigate, manualBlocked])
 
   if (location === '/docs') {
     return (

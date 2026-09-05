@@ -12,6 +12,7 @@ import MultiFileUpload from '@/components/ui/multi-file-upload'
 import { getBusinessDateWIB, getCurrentShiftWIB, formatTimeWIB, SHIFTS } from '@shared/timezone'
 import { STATIONS, METHODS } from '@shared/schema'
 import { parsePasteWaste, type PasteIssue } from '@/lib/paste-waste-parser'
+import { hasCatalog, initialWasteStep } from '@/lib/store-features'
 import { canApplyRestore, deleteDraft, filesToPhotos, getDraft, listQueue, photosToFiles, queueSnapshot, retryQueueItem, saveDraft, shouldUseDirectSubmitFallback, syncQueue, type QueueItem } from '@/lib/offline-waste'
 import { TESTER_ITEMS } from '@shared/tester'
 import { STATION_UI } from '@shared/station-ui'
@@ -101,7 +102,8 @@ export default function AutoWaste() {
 }
 
 function WasteForm({ pasteMode }: { pasteMode: boolean }) {
-  const { user, isAuthenticated } = useAuth()
+  const { user, store, isAuthenticated } = useAuth()
+  const catalogEnabled = hasCatalog(store)
   const restoredRef = useRef(false)
   const mountedRef = useRef(true)
   const draftRevision = useRef(0)
@@ -110,7 +112,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const [persistenceStatus, setPersistenceStatus] = useState('')
   const [queueItems, setQueueItems] = useState<QueueItem[]>([])
 
-  const [step, setStep] = useState<Step>(pasteMode ? 'paste' : 'config')
+  const [step, setStep] = useState<Step>(initialWasteStep(pasteMode, store))
   const [businessDate, setBusinessDate] = useState(getBusinessDateWIB())
   const [shift, setShift] = useState<(typeof SHIFTS)[number]>(getCurrentShiftWIB())
   const [selectedStations, setSelectedStations] = useState<Station[]>(['NOODLE'])
@@ -142,10 +144,10 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const parsedPaste = useMemo(() => parsePasteWaste(rawPaste), [rawPaste])
 
   const stationQueries = {
-    NOODLE: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'NOODLE'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=NOODLE') }),
-    DIMSUM: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'DIMSUM'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=DIMSUM') }),
-    BAR: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'BAR'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=BAR') }),
-    PRODUKSI: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'PRODUKSI'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=PRODUKSI') }),
+    NOODLE: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'NOODLE'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=NOODLE'), enabled: catalogEnabled }),
+    DIMSUM: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'DIMSUM'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=DIMSUM'), enabled: catalogEnabled }),
+    BAR: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'BAR'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=BAR'), enabled: catalogEnabled }),
+    PRODUKSI: useQuery<{ success: boolean; data: StationItem[] }>({ queryKey: ['station-items', 'PRODUKSI'], queryFn: () => apiClient.fetch('/api/get?action=station-items&station=PRODUKSI'), enabled: catalogEnabled }),
   }
 
   const { data: qcData } = useQuery<{ success: boolean; data: Personnel[] }>({ queryKey: ['personnel', 'qc'], queryFn: () => apiClient.fetch('/api/signatures?role=qc') })
@@ -155,7 +157,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const managerList = managerData?.data || []
   const selectedQC = qcList.find((p) => (p.full_name || p.name) === qcName)
   const selectedManager = managerList.find((p) => (p.full_name || p.name) === managerName)
-  const catalogError = STATIONS.some((station) => stationQueries[station].error)
+  const catalogError = catalogEnabled && STATIONS.some((station) => stationQueries[station].error)
   const personnelMissing = qcList.length === 0 || managerList.length === 0
 
   const form: 'manual' | 'paste' = pasteMode ? 'paste' : 'manual'
@@ -311,11 +313,11 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
 
   const pastedQC = findPersonnel(qcList, parsedPaste.qcName)
   const pastedManager = findPersonnel(managerList, parsedPaste.managerName)
-  const catalogLoading = STATIONS.some((station) => stationQueries[station].isLoading)
+  const catalogLoading = catalogEnabled && STATIONS.some((station) => stationQueries[station].isLoading)
   const pasteCatalogWarnings = useMemo<PasteIssue[]>(() => {
-    if (!rawPaste.trim() || catalogLoading) return []
+    if (!catalogEnabled || !rawPaste.trim() || catalogLoading) return []
     return parsedPaste.items.flatMap((item) => {
-      const exactCatalogMatch = (stationQueries[item.station].data?.data || []).some(
+      const exactCatalogMatch = catalogEnabled && (stationQueries[item.station].data?.data || []).some(
         (catalogItem) => catalogItem.nama_produk.trim().toLocaleUpperCase('id-ID') === item.namaProduk.trim().toLocaleUpperCase('id-ID'),
       )
       return exactCatalogMatch
@@ -334,7 +336,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       setPasteApplyIssues([{ line: 0, message: 'Catalog masih dimuat. Tunggu sebentar lalu coba lagi.' }])
       return
     }
-    if (catalogError) {
+    if (catalogEnabled && catalogError) {
       setPasteApplyIssues([{ line: 0, message: 'Catalog gagal dimuat. Refresh halaman lalu coba lagi.' }])
       return
     }
@@ -355,9 +357,11 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     for (const item of parsedPaste.items) {
       const station = item.station as Station
       if (!nextStations.includes(station)) nextStations.push(station)
-      const exactCatalogItem = (stationQueries[station].data?.data || []).find(
-        (catalogItem) => catalogItem.nama_produk.trim().toLocaleUpperCase('id-ID') === item.namaProduk.trim().toLocaleUpperCase('id-ID'),
-      )
+      const exactCatalogItem = catalogEnabled
+        ? (stationQueries[station].data?.data || []).find(
+            (catalogItem) => catalogItem.nama_produk.trim().toLocaleUpperCase('id-ID') === item.namaProduk.trim().toLocaleUpperCase('id-ID'),
+          )
+        : undefined
       nextRows[station].push({
         id: uid(),
         namaProduk: exactCatalogItem ? exactCatalogItem.nama_produk : item.namaProduk,
@@ -383,6 +387,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     setPasteApplyIssues([])
     setStep('config')
     if (pasteCatalogWarnings.length > 0) toast.warning('Ada item manual', `${pasteCatalogWarnings.length} produk tidak ada exact match di catalog.`)
+    else if (catalogEnabled) toast.success('Format diterapkan', `${parsedPaste.items.length} item siap ditinjau.`)
     else toast.success('Format diterapkan', `${parsedPaste.items.length} item siap ditinjau.`)
   }
 

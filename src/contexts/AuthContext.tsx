@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
-import { apiClient, type AuthUser } from '@/lib/api-client'
+import { apiClient, type AuthUser, type StoreInfo } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
 
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
@@ -9,6 +9,7 @@ const ACTIVITY_THROTTLE = 60_000 // 1 minute between extensions
 
 interface AuthContextValue {
   user: AuthUser | null
+  store: StoreInfo | null
   isAuthenticated: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => apiClient.getUser())
+  const [store, setStoreState] = useState<StoreInfo | null>(() => apiClient.getStore())
   const lastActivityRef = useRef<number>(Date.now())
   const warningShownRef = useRef(false)
 
@@ -26,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     apiClient.clearAuth()
     setUser(null)
+    setStoreState(null)
     warningShownRef.current = false
   }, [])
 
@@ -34,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       success: boolean
       token: string
       user: AuthUser
+      store: StoreInfo | null
     }>('/api/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
@@ -42,8 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (res.success && res.token) {
       apiClient.setToken(res.token)
       apiClient.setUser(res.user)
+      apiClient.setStore(res.store ?? null)
       apiClient.setLoginTime(Date.now())
       setUser(res.user)
+      setStoreState(res.store ?? null)
       warningShownRef.current = false
     }
   }, [])
@@ -131,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, store, isAuthenticated, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
