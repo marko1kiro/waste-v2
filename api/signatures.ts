@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { get } from '@vercel/blob'
-import { getSQL, authenticateRequest, verifyBlobAccessToken } from './lib.js'
+import { getSQL, authenticateRequest, verifyBlobAccessToken, resolveStoreContext, getRequestedStoreId } from './lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -60,6 +60,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  let storeId: number | null
+  try {
+    const resolved = resolveStoreContext({ role: payload.role, storeId: payload.storeId ?? null }, getRequestedStoreId(req))
+    storeId = resolved.storeId
+  } catch {
+    return res.status(403).json({ error: 'Store context missing' })
+  }
+  if (storeId === null) return res.status(400).json({ error: 'store_id wajib' })
+
   try {
     const sql = getSQL()
 
@@ -68,21 +77,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       query = sql`
         SELECT name, full_name, role, signature_url
         FROM personnel
-        WHERE role = ${role} AND name = ${queryName} AND status = 'active'
+        WHERE store_id = ${storeId} AND role = ${role} AND name = ${queryName} AND status = 'active'
         ORDER BY name
       `
     } else if (role) {
       query = sql`
         SELECT name, full_name, role, signature_url
         FROM personnel
-        WHERE role = ${role} AND status = 'active'
+        WHERE store_id = ${storeId} AND role = ${role} AND status = 'active'
         ORDER BY name
       `
     } else {
       query = sql`
         SELECT name, full_name, role, signature_url
         FROM personnel
-        WHERE status = 'active'
+        WHERE store_id = ${storeId} AND status = 'active'
         ORDER BY role, name
       `
     }
