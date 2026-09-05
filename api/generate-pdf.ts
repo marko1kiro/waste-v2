@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Readable } from 'stream'
 import { get } from '@vercel/blob'
-import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL } from './lib.js'
+import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId } from './lib.js'
 import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from './google-drive.js'
 import { buildPdfFilename, renderDailyPdf, type PdfItem } from '../shared/pdf-renderer.js'
 import { resolvePdfSignatures, type SignaturePersonnel } from '../shared/pdf-signature-resolver.js'
@@ -149,6 +149,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   const payload = await authenticateRequest(req, true)
   if (!payload) return res.status(401).json({ error: 'Unauthorized' })
+  let storeId: number | null
+  try {
+    const resolved = resolveStoreContext({ role: payload.role, storeId: payload.storeId ?? null }, getRequestedStoreId(req))
+    storeId = resolved.storeId
+  } catch {
+    return res.status(403).json({ error: 'Store context missing' })
+  }
+  if (storeId === null) return res.status(400).json({ error: 'store_id wajib untuk generate PDF' })
   const { date } = req.query as Record<string, string | undefined>
   if (!isCalendarDate(date)) return res.status(400).json({ error: 'Format date harus kalender valid YYYY-MM-DD' })
 
@@ -158,15 +166,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const midnightRows = await sql`
       SELECT done
       FROM daily_records
-      WHERE business_date::text = ${date} AND shift = 'MIDNIGHT'
+      WHERE business_date::text = ${date} AND shift = 'MIDNIGHT' AND store_id = ${storeId}
       LIMIT 1
     `
     const midnightComplete = midnightRows[0]?.done === true
-    const [{ storeName, grouped }, configRows, personnelRows] = await Promise.all([
-      fetchDayGrouped(date),
-      sql`SELECT store_name, extra_config FROM tenant_configs LIMIT 1`,
-      sql`SELECT id, name, full_name, signature_url FROM personnel WHERE status = 'active'`,
+    const [{ storeName, grouped }, storeRows, configRows, personnelRows] = await Promise.all([
+      fetchDayGrouped(date, storeId),
+      sql`SELECT code, name, drive_account, drive_folder_id FROM stores WHERE id = ${storeId} LIMIT 1`,
+      sql`SELECT store_name, extra_config FROM tenant_configs WHERE store_id = ${storeId} LIMIT 1`,
+      sql`SELECT id, name, full_name, signature_url FROM personnel WHERE status = 'active' AND store_id = ${storeId}`,
     ])
+    const store = storeRows[0]
+    if (!store) return res.status(404).json({ error: 'Store tidak ditemukan' })
+    if (store.drive_account !== 'legacy') {
+      // Neutral-account Drive path untuk resto baru: dirilis di fase berikutnya.
+      return res.status(501).json({ error: 'PDF untuk resto ini belum tersedia. Menunggu integrasi Drive per-resto.' })
+    }
     const config = (configRows[0]?.extra_config as Record<string, unknown> | undefined) || {}
     const filename = buildPdfFilename(String(config.store_code || 'STORE'), date)
 
