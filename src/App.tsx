@@ -42,10 +42,10 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryS
     if (this.state.hasError) {
       return (
         <div className="flex min-h-dvh flex-col items-center justify-center px-4">
-          <div className="w-full max-w-sm rounded-xl border-2 border-danger/30 bg-[#111] p-6 text-center shadow-nb-md">
-            <h1 className="mb-2 text-xl font-black text-danger">Terjadi Kesalahan</h1>
+          <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 text-center shadow-theme-lg">
+            <h1 className="mb-2 text-xl font-semibold text-error-600 dark:text-error-400">Terjadi Kesalahan</h1>
             <p className="mb-4 text-xs text-text-muted">{this.state.error?.message || 'Aplikasi mengalami error yang tidak terduga.'}</p>
-            <button onClick={() => window.location.reload()} className="rounded-lg border-2 border-[#000] bg-warning px-6 py-2.5 text-sm font-black text-black shadow-nb-md transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-lg active:translate-x-0.5 active:translate-y-0.5 active:shadow-none">Refresh Halaman</button>
+            <button onClick={() => window.location.reload()} className="rounded-lg bg-brand-500 px-6 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">Refresh Halaman</button>
           </div>
         </div>
       )
