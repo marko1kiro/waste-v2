@@ -470,7 +470,7 @@ export function DashboardHistory() {
                               <td className="py-1.5 pr-2"><input value={editForm.jam_tanggal_pemusnahan} onChange={(e) => setEditForm({ ...editForm, jam_tanggal_pemusnahan: e.target.value })} className={inputCls} /></td>
                               <td className="py-1.5">
                                 <div className="flex gap-1">
-                                  <button type="button" onClick={() => updateMutation.mutate({ id: item.id, form: editForm })} disabled={updateMutation.isPending} className="rounded bg-success/20 p-1 text-success hover:bg-success/30 disabled:opacity-40"><Check size={12} /></button>
+                                  <button type="button" onClick={() => updateMutation.mutate({ id: item.id, form: editForm })} disabled={updateMutation.isPending} className="rounded bg-success-50 p-1 text-success-600 hover:bg-success-100 dark:bg-success-500/10 dark:text-success-400 dark:hover:bg-success-500/20 disabled:opacity-40"><Check size={12} /></button>
                                   <button type="button" onClick={() => { setEditingId(null); setEditForm(null) }} className="rounded bg-surface-alt p-1 text-text-muted hover:text-text-primary"><X size={12} /></button>
                                 </div>
                               </td>
@@ -486,7 +486,7 @@ export function DashboardHistory() {
                               <td className="py-1.5">
                                 <div className="flex gap-1">
                                   <button type="button" onClick={() => startEdit(item)} className="rounded bg-brand-50 p-1 text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"><Pencil size={11} /></button>
-                                  <button type="button" onClick={() => setConfirmDeleteId(item.id)} className="rounded bg-danger/10 p-1 text-danger hover:bg-danger/20"><Trash2 size={11} /></button>
+                                  <button type="button" onClick={() => setConfirmDeleteId(item.id)} className="rounded bg-error-50 p-1 text-error-600 hover:bg-error-100 dark:bg-error-500/10 dark:text-error-400 dark:hover:bg-error-500/20"><Trash2 size={11} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -494,7 +494,7 @@ export function DashboardHistory() {
                         ))}
 
                         {addingFor?.shift === shift && addingFor?.station === station && addForm && (
-                          <tr className="bg-success/5">
+                          <tr className="bg-success-50/60 dark:bg-success-500/5">
                             <td className="py-1.5 pr-2"><input placeholder="Nama produk" value={addForm.nama_produk} onChange={(e) => setAddForm({ ...addForm, nama_produk: e.target.value })} className={inputCls} /></td>
                             <td className="py-1.5 pr-2"><input type="number" min={1} value={addForm.jumlah_produk} onChange={(e) => setAddForm({ ...addForm, jumlah_produk: Number(e.target.value) })} className={inputCls + ' text-center'} /></td>
                             <td className="py-1.5 pr-2">
@@ -515,7 +515,7 @@ export function DashboardHistory() {
                             <td className="py-1.5 pr-2"><input placeholder="Jam" value={addForm.jam_tanggal_pemusnahan} onChange={(e) => setAddForm({ ...addForm, jam_tanggal_pemusnahan: e.target.value })} className={inputCls} /></td>
                             <td className="py-1.5">
                               <div className="flex gap-1">
-                                <button type="button" onClick={() => addMutation.mutate({ ...addForm, business_date: selectedDate })} disabled={!addForm.nama_produk || addForm.jumlah_produk < 1 || addMutation.isPending} className="rounded bg-success/20 p-1 text-success hover:bg-success/30 disabled:opacity-40"><Check size={12} /></button>
+                                <button type="button" onClick={() => addMutation.mutate({ ...addForm, business_date: selectedDate })} disabled={!addForm.nama_produk || addForm.jumlah_produk < 1 || addMutation.isPending} className="rounded bg-success-50 p-1 text-success-600 hover:bg-success-100 dark:bg-success-500/10 dark:text-success-400 dark:hover:bg-success-500/20 disabled:opacity-40"><Check size={12} /></button>
                                 <button type="button" onClick={() => { setAddingFor(null); setAddForm(null) }} className="rounded bg-surface-alt p-1 text-text-muted hover:text-text-primary"><X size={12} /></button>
                               </div>
                             </td>

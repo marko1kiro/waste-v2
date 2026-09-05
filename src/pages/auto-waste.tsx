@@ -644,8 +644,8 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             <PasteIssues title="Belum bisa diterapkan" issues={pasteApplyIssues} tone="danger" />
           )}
           {rawPaste.trim() && catalogLoading && <p className="text-xs text-text-muted">Memuat catalog untuk cek exact match...</p>}
-          {rawPaste.trim() && !catalogLoading && !catalogError && !pastedQC && <p className="text-xs text-danger">QC dari paste belum cocok dengan personnel aktif.</p>}
-          {rawPaste.trim() && !catalogLoading && !catalogError && !pastedManager && <p className="text-xs text-danger">Manager dari paste belum cocok dengan personnel aktif.</p>}
+          {rawPaste.trim() && !catalogLoading && !catalogError && !pastedQC && <p className="text-xs text-error-600 dark:text-error-400">QC dari paste belum cocok dengan personnel aktif.</p>}
+          {rawPaste.trim() && !catalogLoading && !catalogError && !pastedManager && <p className="text-xs text-error-600 dark:text-error-400">Manager dari paste belum cocok dengan personnel aktif.</p>}
 
           <button
             type="button"
