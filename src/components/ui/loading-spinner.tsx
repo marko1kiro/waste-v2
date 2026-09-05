@@ -16,7 +16,7 @@ const SIZE_MAP = {
 export function LoadingSpinner({ size = 'md', text }: LoadingSpinnerProps) {
   return (
     <div className="flex items-center gap-2">
-      <Loader2 size={SIZE_MAP[size]} className="animate-spin text-primary" />
+      <Loader2 size={SIZE_MAP[size]} className="animate-spin text-brand-500" />
       {text && <span className="text-sm text-text-muted">{text}</span>}
     </div>
   )
@@ -36,13 +36,13 @@ export function ButtonLoadingSpinner() {
 
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <div className={`animate-pulse rounded-lg bg-[#1a1a1a] ${className}`} />
+    <div className={`animate-pulse rounded-lg bg-surface-alt ${className}`} />
   )
 }
 
 export function CardSkeleton() {
   return (
-    <div className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
       <Skeleton className="mb-3 h-4 w-24" />
       <Skeleton className="mb-2 h-6 w-16" />
       <Skeleton className="h-3 w-32" />
@@ -64,19 +64,19 @@ export function ProgressOverlay({ progress }: { progress: ProgressState }) {
   useEffect(() => { if (!progress.startedAt) return; setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [progress.startedAt])
   const { percent: pct } = getWasteSubmitProgress({ completed: progress.current, total: progress.total })
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-xl border-2 border-border bg-[#111] p-5 text-center shadow-nb-lg">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-gray-950/60 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-5 text-center shadow-theme-lg">
         <div className="mb-3 flex items-center justify-center gap-2">
-          <Loader2 size={18} className="animate-spin text-warning" />
-          <span className="text-sm font-black text-warning">{progress.label}</span>
+          <Loader2 size={18} className="animate-spin text-brand-500" />
+          <span className="text-sm font-semibold text-text-primary">{progress.label}</span>
         </div>
-        <div className="mb-2 h-2.5 overflow-hidden rounded-full bg-[#1a1a1a]">
+        <div className="mb-2 h-2.5 overflow-hidden rounded-full bg-surface-alt">
           <div
-            className="h-2.5 rounded-full bg-warning transition-all duration-300 ease-out"
+            className="h-2.5 rounded-full bg-brand-500 transition-all duration-300 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>
-        <div className="mb-2 text-xs font-bold text-text-primary">{pct}%{progress.startedAt ? ` • ${formatWasteSubmitElapsed(now - progress.startedAt)}` : ''}</div>
+        <div className="mb-2 text-xs font-semibold text-text-primary">{pct}%{progress.startedAt ? ` • ${formatWasteSubmitElapsed(now - progress.startedAt)}` : ''}</div>
         {progress.detail && <p className="mb-2 text-[10px] text-text-muted">{progress.detail}</p>}
         <p className="text-[10px] text-text-muted">Sabar ya, jangan ditutup halamannya.</p>
       </div>

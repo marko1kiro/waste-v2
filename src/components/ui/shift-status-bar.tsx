@@ -28,13 +28,13 @@ export default function ShiftStatusBar() {
   const storeLabel = storeCode && storeName ? `${storeCode} - ${storeName}` : storeName || storeCode || ''
 
   return (
-    <div className="mx-auto mb-4 max-w-2xl rounded-xl border-2 border-border bg-surface p-3 shadow-nb-sm">
+    <div className="mx-auto mb-4 max-w-2xl rounded-xl border border-border bg-surface p-3 shadow-theme-xs">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-xs font-black text-text-primary">{storeLabel}</div>
-          <div className="text-[10px] font-bold text-text-muted">{getDayNameWIB(businessDate)}, {formatDateDisplay(businessDate)}</div>
+          <div className="truncate text-xs font-semibold text-text-primary">{storeLabel}</div>
+          <div className="text-[10px] text-text-muted">{getDayNameWIB(businessDate)}, {formatDateDisplay(businessDate)}</div>
         </div>
-        <div className="shrink-0 rounded-lg border border-border bg-[#171a20] px-2 py-1 text-[10px] font-black uppercase text-warning">Yo {user?.username || '-'}!</div>
+        <div className="shrink-0 rounded-lg border border-border bg-surface-alt px-2 py-1 text-[10px] font-semibold uppercase text-text-primary">Yo {user?.username || '-'}!</div>
       </div>
 
       <div className="grid grid-cols-4 gap-2">
@@ -49,19 +49,19 @@ export default function ShiftStatusBar() {
               className="flex flex-col items-center py-1"
             >
               <span className="text-sm">{meta.emoji}</span>
-              <span className="text-[9px] font-black uppercase tracking-wider text-text-muted">
+              <span className="text-[9px] font-semibold uppercase text-text-muted">
                 {shift}
               </span>
               {isDone ? (
-                <CheckCircle2 size={14} className="mt-0.5 text-success" />
+                <CheckCircle2 size={14} className="mt-0.5 text-success-500" />
               ) : (
-                <Clock size={14} className="mt-0.5 text-amber-500" />
+                <Clock size={14} className="mt-0.5 text-warning-500" />
               )}
             </div>
           )
         })}
       </div>
-      <p className="mt-2 text-center text-[11px] text-warning">PDF baru bisa dibuat kalo Midnight udah di-submit ya!</p>
+      <p className="mt-2 text-center text-[11px] text-warning-600 dark:text-warning-400">PDF baru bisa dibuat kalo Midnight udah di-submit ya!</p>
     </div>
   )
 }
