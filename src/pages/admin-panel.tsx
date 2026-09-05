@@ -43,11 +43,11 @@ export default function AdminPanel() {
 
   return (
     <div className="mx-auto max-w-6xl py-2">
-      <div className="mb-5 rounded-2xl border-2 border-border bg-gradient-to-br from-[#111] to-[#171a20] p-4 shadow-nb-md sm:p-5">
+      <div className="mb-5 rounded-2xl border border-border bg-surface p-4 shadow-theme-sm sm:p-5">
         <div className="flex items-start gap-3 sm:items-center">
-          <div className="rounded-xl border-2 border-warning/30 bg-warning/10 p-3 text-warning"><Shield size={22} /></div>
+          <div className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-warning-600 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><Shield size={22} /></div>
           <div>
-            <h1 className="text-xl font-black text-warning">Admin Panel</h1>
+            <h1 className="text-xl font-semibold text-text-primary">Admin Panel</h1>
             <p className="text-xs leading-relaxed text-text-muted">Dashboard super admin. Modul terpisah, navigasi mobile-friendly.</p>
           </div>
         </div>
@@ -69,32 +69,32 @@ export default function AdminPanel() {
         <QuickLink href="/dashboard" title="Lihat Analytics" desc="Trend, top products, breakdown" icon={<BarChart3 size={18} />} />
       </div>
 
-      <section className="mt-5 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
+      <section className="mt-5 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
         <div className="mb-3 flex items-center gap-2">
-          <Store size={16} className="text-warning" />
-          <h2 className="text-sm font-black text-text-primary">Config Store</h2>
+          <Store size={16} className="text-brand-500 dark:text-brand-400" />
+          <h2 className="text-sm font-semibold text-text-primary">Config Store</h2>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Kode Store</label>
-            <input value={editForm.store_code} onChange={(e) => setStoreForm({ ...editForm, store_code: e.target.value })} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary" placeholder="CKRBUL" />
+            <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Kode Store</label>
+            <input value={editForm.store_code} onChange={(e) => setStoreForm({ ...editForm, store_code: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" placeholder="CKRBUL" />
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Nama Store</label>
-            <input value={editForm.store_name} onChange={(e) => setStoreForm({ ...editForm, store_name: e.target.value })} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary" placeholder="BEKASI KP. BULU" />
+            <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Nama Store</label>
+            <input value={editForm.store_name} onChange={(e) => setStoreForm({ ...editForm, store_name: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" placeholder="BEKASI KP. BULU" />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">URL QC Checklist</label>
-            <input value={editForm.qc_checklist_url} onChange={(e) => setStoreForm({ ...editForm, qc_checklist_url: e.target.value })} className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary" placeholder="https://drive.google.com/..." />
+            <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">URL QC Checklist</label>
+            <input value={editForm.qc_checklist_url} onChange={(e) => setStoreForm({ ...editForm, qc_checklist_url: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary" placeholder="https://drive.google.com/..." />
           </div>
         </div>
-        <button onClick={saveStoreConfig} disabled={savingStore} className="mt-3 rounded-lg border-2 border-[#000] bg-warning px-4 py-2 text-sm font-black text-black shadow-nb-sm transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-nb-md active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50">
+        <button onClick={saveStoreConfig} disabled={savingStore} className="mt-3 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:opacity-50">
           {savingStore ? <Loader2 size={14} className="inline animate-spin" /> : 'Simpan'}
         </button>
       </section>
 
-      <section className="mt-5 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
-        <h2 className="mb-3 text-sm font-black text-text-primary">Entry Terakhir</h2>
+      <section className="mt-5 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+        <h2 className="mb-3 text-sm font-semibold text-text-primary">Entry Terakhir</h2>
         {dashboard?.lastEntry ? (
           <div className="grid gap-2 text-sm text-text-muted sm:grid-cols-2">
             <p><span className="text-text-primary">Tanggal:</span> {dashboard.lastEntry.date}</p>
@@ -110,18 +110,18 @@ export default function AdminPanel() {
 
 function Card({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
   return (
-    <div className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
-      <div className="mb-2 flex items-center gap-2 text-warning">{icon}<span className="text-[10px] font-black uppercase tracking-widest text-[#555]">{label}</span></div>
-      <div className="text-2xl font-black text-text-primary">{value}</div>
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+      <div className="mb-2 flex items-center gap-2 text-brand-500 dark:text-brand-400">{icon}<span className="text-[10px] font-semibold uppercase text-text-muted">{label}</span></div>
+      <div className="text-2xl font-semibold text-text-primary">{value}</div>
     </div>
   )
 }
 
 function QuickLink({ href, title, desc, icon }: { href: string; title: string; desc: string; icon: React.ReactNode }) {
   return (
-    <Link href={href} className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm transition hover:-translate-x-px hover:-translate-y-px hover:border-warning active:translate-y-[1px]">
-      <div className="mb-3 flex items-center justify-between text-warning">{icon}<ArrowRight size={16} /></div>
-      <div className="mb-1 text-sm font-black text-text-primary">{title}</div>
+    <Link href={href} className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs transition hover:shadow-theme-md hover:border-brand-200 dark:hover:border-brand-500/30">
+      <div className="mb-3 flex items-center justify-between text-brand-500 dark:text-brand-400">{icon}<ArrowRight size={16} /></div>
+      <div className="mb-1 text-sm font-semibold text-text-primary">{title}</div>
       <div className="text-xs leading-relaxed text-text-muted">{desc}</div>
     </Link>
   )

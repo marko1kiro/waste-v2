@@ -24,11 +24,11 @@ const SHIFT_ORDER = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT']
 
 function shiftColor(shift: string) {
   switch (shift) {
-    case 'OPENING': return 'text-warning border-warning/30 bg-warning/10'
+    case 'OPENING': return 'text-warning-600 dark:text-warning-400 border-warning-200 bg-warning-50 dark:border-warning-500/20 dark:bg-warning-500/10'
     case 'MIDDLE': return 'text-blue-400 border-blue-400/30 bg-blue-400/10'
     case 'CLOSING': return 'text-purple-400 border-purple-400/30 bg-purple-400/10'
-    case 'MIDNIGHT': return 'text-text-muted border-border bg-[#0d0d0d]'
-    default: return 'text-text-muted border-border bg-[#0d0d0d]'
+    case 'MIDNIGHT': return 'text-text-muted border-border bg-background'
+    default: return 'text-text-muted border-border bg-background'
   }
 }
 
@@ -83,22 +83,22 @@ export default function AdminHistory() {
   return (
     <div className="mx-auto max-w-2xl py-2">
       <div className="mb-4 flex items-center gap-3">
-        <Link href="/" className="rounded-lg border-2 border-border bg-[#111] p-2 text-text-muted shadow-nb-sm transition hover:border-warning hover:text-warning">
+        <Link href="/" className="rounded-lg border border-border bg-surface p-2 text-text-muted shadow-theme-xs transition hover:border-warning hover:text-warning-600 dark:text-warning-400">
           <ChevronLeft size={16} />
         </Link>
         <div className="flex items-center gap-2">
-          <History size={20} className="text-warning" />
-          <h1 className="text-lg font-black text-text-primary">History Input</h1>
+          <History size={20} className="text-warning-600 dark:text-warning-400" />
+          <h1 className="text-lg font-semibold text-text-primary">History Input</h1>
         </div>
       </div>
 
-      <div className="mb-4 rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
-        <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#666]">Pilih Tanggal</label>
+      <div className="mb-4 rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+        <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Pilih Tanggal</label>
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="w-full rounded-lg border-2 border-border bg-[#0d0d0d] px-3 py-2 text-sm text-text-primary"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary"
         />
       </div>
 
@@ -110,7 +110,7 @@ export default function AdminHistory() {
       )}
 
       {!isLoading && records.length === 0 && (
-        <div className="rounded-xl border-2 border-border bg-[#111] p-6 text-center shadow-nb-sm">
+        <div className="rounded-xl border border-border bg-surface p-6 text-center shadow-theme-xs">
           <p className="text-sm text-text-muted">Ga ada data buat tanggal <strong className="text-text-primary">{date}</strong>.</p>
         </div>
       )}
@@ -118,14 +118,14 @@ export default function AdminHistory() {
       {!isLoading && records.length > 0 && (
         <div className="space-y-3">
           {records.map((r) => (
-            <div key={r.shift} className="rounded-xl border-2 border-border bg-[#111] p-4 shadow-nb-sm">
+            <div key={r.shift} className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
               <div className="mb-3 flex items-center justify-between">
-                <span className={`rounded-full border px-3 py-1 text-xs font-black ${shiftColor(r.shift)}`}>{r.shift}</span>
+                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${shiftColor(r.shift)}`}>{r.shift}</span>
                 <button
                   type="button"
                   onClick={() => setConfirmShift(r.shift)}
                   disabled={deleteMutation.isPending || changeMutation.isPending}
-                  className="flex items-center gap-1.5 rounded-lg border-2 border-danger/30 bg-danger/10 px-3 py-1.5 text-xs font-black text-danger transition hover:border-danger hover:bg-danger/20 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-error-200 bg-error-50 dark:border-error-500/20 dark:bg-error-500/10 px-3 py-1.5 text-xs font-semibold text-error-600 dark:text-error-400 transition hover:bg-error-100 dark:hover:bg-error-500/20 disabled:opacity-50"
                 >
                   <Trash2 size={12} />
                   Hapus
@@ -135,7 +135,7 @@ export default function AdminHistory() {
                 <select
                   value={shiftTargets[r.shift] || ''}
                   onChange={(e) => setShiftTargets((prev) => ({ ...prev, [r.shift]: e.target.value }))}
-                  className="flex-1 rounded-lg border-2 border-border bg-[#0d0d0d] px-2 py-1.5 text-xs text-text-primary"
+                  className="flex-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-text-primary"
                 >
                   <option value="">Pindah ke...</option>
                   {SHIFT_ORDER.filter((s) => s !== r.shift && !records.some((rec) => rec.shift === s)).map((s) => (
@@ -146,7 +146,7 @@ export default function AdminHistory() {
                   type="button"
                   disabled={!shiftTargets[r.shift] || changeMutation.isPending}
                   onClick={() => shiftTargets[r.shift] && setConfirmChange({ from: r.shift, to: shiftTargets[r.shift] })}
-                  className="flex items-center gap-1.5 rounded-lg border-2 border-blue-400/30 bg-blue-400/10 px-3 py-1.5 text-xs font-black text-blue-400 transition hover:border-blue-400 hover:bg-blue-400/20 disabled:opacity-30"
+                  className="flex items-center gap-1.5 rounded-lg border-2 border-blue-400/30 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-400 transition hover:border-blue-400 hover:bg-blue-400/20 disabled:opacity-30"
                 >
                   <ArrowRightLeft size={12} />
                   Ganti Shift
@@ -154,19 +154,19 @@ export default function AdminHistory() {
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-text-muted">
                 <div>
-                  <span className="text-[10px] uppercase tracking-widest text-[#555]">Station</span>
+                  <span className="text-[10px] uppercase text-text-muted">Station</span>
                   <p className="mt-0.5 font-bold text-text-primary">{r.stations?.join(', ') || '-'}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-widest text-[#555]">Total Item</span>
+                  <span className="text-[10px] uppercase text-text-muted">Total Item</span>
                   <p className="mt-0.5 font-bold text-text-primary">{r.item_count}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-widest text-[#555]">Submitted By</span>
+                  <span className="text-[10px] uppercase text-text-muted">Submitted By</span>
                   <p className="mt-0.5 font-bold text-text-primary">{r.submitted_by || '-'}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase tracking-widest text-[#555]">Waktu</span>
+                  <span className="text-[10px] uppercase text-text-muted">Waktu</span>
                   <p className="mt-0.5 font-bold text-text-primary">
                     {r.created_at ? new Date(r.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                   </p>
