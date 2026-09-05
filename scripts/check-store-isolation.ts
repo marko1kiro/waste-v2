@@ -14,7 +14,7 @@ import 'dotenv/config'
 process.env.JWT_SECRET ||= 'check-store-isolation-test-secret-0123456789abcdef'
 
 const { neon } = await import('@neondatabase/serverless')
-const { createToken, verifyToken, buildStoreScope } = await import('../api/lib.ts')
+const { createToken, verifyToken, buildStoreScope } = await import('../server/lib.ts')
 
 const databaseUrl = process.env.DATABASE_URL
 if (!databaseUrl) {

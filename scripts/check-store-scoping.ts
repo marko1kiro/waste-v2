@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 
 process.env.JWT_SECRET ||= 'check-store-scoping-test-secret-0123456789abcdef'
 
-const { buildStoreScope } = await import('../api/lib.ts')
+const { buildStoreScope } = await import('../server/lib.ts')
 
 // admin_store scoped
 assert.deepEqual(

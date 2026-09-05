@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { escapeGoogleDriveQueryLiteral, GoogleDriveBackupError } from '../api/google-drive.js'
+import { escapeGoogleDriveQueryLiteral, GoogleDriveBackupError } from '../server/google-drive.js'
 
 assert.equal(escapeGoogleDriveQueryLiteral("BA Waste O'BRIEN.pdf"), "BA Waste O\\'BRIEN.pdf")
 assert.equal(escapeGoogleDriveQueryLiteral('path\\file.pdf'), 'path\\\\file.pdf')

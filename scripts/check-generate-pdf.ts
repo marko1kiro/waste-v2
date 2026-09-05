@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { buildPdfFilename, renderDailyPdf } from '../shared/pdf-renderer.js'
-import { createBlobAccessToken, verifyBlobAccessToken } from '../api/lib.js'
+import { createBlobAccessToken, verifyBlobAccessToken } from '../server/lib.js'
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-that-is-at-least-32-characters-long'
 

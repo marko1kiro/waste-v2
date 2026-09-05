@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
 import { del } from '@vercel/blob'
-import { apiKeyCreateStatement, apiKeyExpireStatement, createApiKey, decryptApiKey, encryptApiKey, getSQL, authenticateRequest, hashApiKey, hashPassword, logActivity, getClientIP, verifyPassword, resolveStoreContext, getRequestedStoreId, type ResolvedStore } from '../lib.js'
+import { apiKeyCreateStatement, apiKeyExpireStatement, createApiKey, decryptApiKey, encryptApiKey, getSQL, authenticateRequest, hashApiKey, hashPassword, logActivity, getClientIP, verifyPassword, resolveStoreContext, getRequestedStoreId, type ResolvedStore } from '../../server/lib.js'
 
 // ─── Schemas ───────────────────────────────────────────
 const createPersonnelSchema = z.object({

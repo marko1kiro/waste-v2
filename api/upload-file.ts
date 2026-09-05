@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest, uploadToBlob, getProxyUrl } from './lib.js'
+import { authenticateRequest, uploadToBlob, getProxyUrl } from '../server/lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const payload = await authenticateRequest(req, true)

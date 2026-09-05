@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { getSQL, verifyPassword, createToken, logActivity, getClientIP } from './lib.js'
+import { getSQL, verifyPassword, createToken, logActivity, getClientIP } from '../server/lib.js'
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username wajib diisi'),

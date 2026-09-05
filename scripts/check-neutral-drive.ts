@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 
-const { resolveNeutralDriveConfig } = await import('../api/google-drive-neutral.ts')
+const { resolveNeutralDriveConfig } = await import('../server/google-drive-neutral.ts')
 
 // Missing env -> configuration error
 delete process.env.GOOGLE_DRIVE_NEUTRAL_CLIENT_ID

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getSQL, authenticateRequest, dashboardQuerySchema, resolveStoreContext, getRequestedStoreId } from './lib.js'
+import { getSQL, authenticateRequest, dashboardQuerySchema, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
