@@ -10,7 +10,7 @@ const STORE_NAV_ITEMS = [
   { href: '/', label: 'Waste', icon: ClipboardList, matchPaths: ['/', '/manual-waste', '/auto-waste', '/paste-waste'] },
   { href: '/dashboard', label: 'History', icon: BarChart3, matchPaths: ['/dashboard'] },
   { href: '/pdf', label: 'PDF', icon: FileText, matchPaths: ['/pdf'] },
-  { href: '__qc_checklist__', label: 'QC List', icon: ClipboardCheck, matchPaths: [] },
+  { href: '__qc_checklist__', label: 'Tutorial', icon: ClipboardCheck, matchPaths: [] },
   { href: '/profile', label: 'Profil', icon: User, matchPaths: ['/profile'] },
 ] as const
 

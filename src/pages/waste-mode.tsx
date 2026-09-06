@@ -1,19 +1,20 @@
 import { Link } from 'wouter'
 import { ClipboardPaste, PenLine } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { canManual } from '@/lib/store-features'
+import { canManual, pasteOnly } from '@/lib/store-features'
 
 export default function WasteMode() {
   const { store } = useAuth()
   const showManual = canManual(store)
+  const isPasteOnly = pasteOnly(store)
 
   return (
     <div className="flex flex-col items-center px-4 py-6">
       <h1 className="mb-1 text-xl font-semibold text-text-primary">Pilih Cara Input</h1>
       <p className="mb-8 text-center text-xs text-text-muted">Pilih input manual atau paste format Waste dari WhatsApp.</p>
 
-      <div className={`grid w-full max-w-2xl gap-4 ${showManual ? 'md:grid-cols-2' : ''}`}>
-        {showManual && (
+      <div className={`grid w-full max-w-2xl gap-4 ${showManual && !isPasteOnly ? 'md:grid-cols-2' : ''}`}>
+        {showManual && !isPasteOnly && (
           <Link
             href="/manual-waste"
             className="block rounded-xl border border-border bg-surface p-5 shadow-theme-xs transition hover:shadow-theme-md"
