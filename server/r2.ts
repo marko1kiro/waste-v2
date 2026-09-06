@@ -77,16 +77,19 @@ export async function r2Delete(key: string): Promise<void> {
 
 // ─── PDF Backup in R2 (Neutral Stores) ──────────────────
 
-/** Build canonical R2 storage key for a store's PDF backup. */
-export function buildR2PdfKey(storeCode: string, filename: string): string {
+/** Build canonical R2 storage key for a store's PDF backup scoped by resto & month. */
+export function buildR2PdfKey(storeCode: string, filename: string, date?: string): string {
   const safeCode = (storeCode || 'STORE').toUpperCase().replace(/[^A-Z0-9_-]/g, '')
-  return `pdf-backup/${safeCode}/${filename}`
+  const yearMonth = date && /^\d{4}-\d{2}/.test(date)
+    ? date.slice(0, 7)
+    : new Date().toISOString().slice(0, 7)
+  return `${safeCode}/${yearMonth}/pdf-backup/${filename}`
 }
 
 /** Check if a PDF exists in R2. Returns public URL if found, null otherwise. */
-export async function findR2Pdf(storeCode: string, filename: string): Promise<{ key: string; url: string } | null> {
+export async function findR2Pdf(storeCode: string, filename: string, date?: string): Promise<{ key: string; url: string } | null> {
   if (!R2_BUCKET || !R2_PUBLIC_DOMAIN) return null
-  const key = buildR2PdfKey(storeCode, filename)
+  const key = buildR2PdfKey(storeCode, filename, date)
   const client = getR2Client()
   const url = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`
 
@@ -98,9 +101,9 @@ export async function findR2Pdf(storeCode: string, filename: string): Promise<{ 
 }
 
 /** Download a PDF directly from R2. */
-export async function downloadR2Pdf(storeCode: string, filename: string): Promise<Response | null> {
+export async function downloadR2Pdf(storeCode: string, filename: string, date?: string): Promise<Response | null> {
   if (!R2_BUCKET) return null
-  const key = buildR2PdfKey(storeCode, filename)
+  const key = buildR2PdfKey(storeCode, filename, date)
   const client = getR2Client()
   const url = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`
 
@@ -109,8 +112,8 @@ export async function downloadR2Pdf(storeCode: string, filename: string): Promis
   return response
 }
 
-/** Upload a PDF to R2. Returns public URL. */
-export async function uploadR2Pdf(storeCode: string, filename: string, pdf: Buffer): Promise<string> {
-  const key = buildR2PdfKey(storeCode, filename)
+/** Upload a PDF to R2 scoped by resto & month. Returns public URL. */
+export async function uploadR2Pdf(storeCode: string, filename: string, pdf: Buffer, date?: string): Promise<string> {
+  const key = buildR2PdfKey(storeCode, filename, date)
   return r2Upload(key, pdf, 'application/pdf')
 }
