@@ -118,17 +118,25 @@ async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload:
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-async function handleUsers(req: VercelRequest, res: VercelResponse, payload: any) {
+async function handleUsers(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
   if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
   const sql = getSQL()
 
   if (req.method === 'GET') {
-    const rows = await sql`
-      SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.store_id, s.code AS store_code, s.name AS store_name
-      FROM users u
-      LEFT JOIN stores s ON s.id = u.store_id
-      ORDER BY u.role DESC, u.username ASC
-    `
+    const rows = store.storeId === null
+      ? await sql`
+          SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.store_id, s.code AS store_code, s.name AS store_name
+          FROM users u
+          LEFT JOIN stores s ON s.id = u.store_id
+          ORDER BY u.role DESC, u.username ASC
+        `
+      : await sql`
+          SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.store_id, s.code AS store_code, s.name AS store_name
+          FROM users u
+          LEFT JOIN stores s ON s.id = u.store_id
+          WHERE u.store_id = ${store.storeId}
+          ORDER BY u.role DESC, u.username ASC
+        `
     return res.status(200).json({ success: true, data: rows })
   }
 
@@ -588,7 +596,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'personnel':
         return await handlePersonnel(req, res, payload, store)
       case 'users':
-        return await handleUsers(req, res, payload)
+        return await handleUsers(req, res, payload, store)
       case 'station-items':
         return await handleStationItems(req, res, payload, store)
       case 'tenant-config':
