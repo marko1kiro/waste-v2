@@ -14,7 +14,7 @@ export function pasteOnly(store: StoreInfo): boolean {
 }
 
 export function canManual(store: StoreInfo): boolean {
-  if (!store) return true
+  if (!store) return false
   return store.features?.manual_mode !== false
 }
 

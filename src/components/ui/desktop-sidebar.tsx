@@ -11,7 +11,7 @@ const STORE_NAV_ITEMS = [
   { href: '/', label: 'Waste', icon: ClipboardList },
   { href: '/dashboard', label: 'History', icon: BarChart3 },
   { href: '/pdf', label: 'PDF Report', icon: FileText },
-  { href: '__qc_checklist__', label: 'QC Checklist', icon: ClipboardCheck },
+  { href: '__qc_checklist__', label: 'Tutorial', icon: ClipboardCheck },
   { href: '/profile', label: 'Profil', icon: User },
 ] as const
 
