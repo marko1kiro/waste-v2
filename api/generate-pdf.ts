@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Readable } from 'stream'
 import { get } from '@vercel/blob'
-import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
+import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId, isR2Url } from '../server/lib.js'
 import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from '../server/google-drive.js'
 import { downloadNeutralDrivePdf, findNeutralDrivePdf, GoogleDriveNeutralError, uploadNeutralDrivePdf } from '../server/google-drive-neutral.js'
 import { buildPdfFilename, renderDailyPdf, type PdfItem } from '../shared/pdf-renderer.js'
@@ -38,11 +38,26 @@ function supportedImageType(contentType: string | null | undefined, url: string)
 async function loadPrivateAsset(url: string): Promise<{ asset: string; bytes: number }> {
   const privateUrl = blobUrl(url)
   if (!privateUrl) throw new Error('Unsupported private asset URL')
-  const result = await get(privateUrl, { access: 'private' })
-  if (!result || result.statusCode !== 200 || !result.stream) throw new Error('Private asset unavailable')
-  const contentType = supportedImageType(result.blob.contentType, privateUrl)
-  if (!contentType) throw new Error('Unsupported PDF image type')
-  const bytes = Buffer.from(await new Response(result.stream).arrayBuffer())
+
+  let contentType: string | null
+  let bytes: Buffer
+
+  if (isR2Url(privateUrl)) {
+    // R2 URLs are public — fetch directly
+    const response = await fetch(privateUrl)
+    if (!response.ok) throw new Error('R2 asset unavailable')
+    contentType = supportedImageType(response.headers.get('content-type'), privateUrl)
+    if (!contentType) throw new Error('Unsupported PDF image type')
+    bytes = Buffer.from(await response.arrayBuffer())
+  } else {
+    // Legacy Vercel Blob — use @vercel/blob get()
+    const result = await get(privateUrl, { access: 'private' })
+    if (!result || result.statusCode !== 200 || !result.stream) throw new Error('Private asset unavailable')
+    contentType = supportedImageType(result.blob.contentType, privateUrl)
+    if (!contentType) throw new Error('Unsupported PDF image type')
+    bytes = Buffer.from(await new Response(result.stream).arrayBuffer())
+  }
+
   if (!bytes.length || bytes.byteLength > MAX_ASSET_BYTES) throw new Error('PDF asset byte limit exceeded')
   return { asset: dataUrl(contentType, bytes), bytes: bytes.byteLength }
 }
