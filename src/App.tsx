@@ -19,6 +19,7 @@ const AdminRestos = lazy(() => import('./pages/admin-restos'))
 const AdminUsers = lazy(() => import('./pages/admin-users'))
 const AdminHistory = lazy(() => import('./pages/admin-history'))
 const ApiDocs = lazy(() => import('./pages/api-docs'))
+const Tutorial = lazy(() => import('./pages/tutorial'))
 const NotFound = lazy(() => import('./pages/not-found'))
 
 interface ErrorBoundaryState {
@@ -65,6 +66,7 @@ function StoreRouter() {
       <Route path="/paste-waste" component={AutoWaste} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/pdf" component={PdfDownload} />
+      <Route path="/tutorial" component={Tutorial} />
       <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>

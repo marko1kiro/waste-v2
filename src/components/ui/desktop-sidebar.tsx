@@ -1,17 +1,13 @@
 import { useLocation, Link } from 'wouter'
-import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
-import { apiClient } from '@/lib/api-client'
 import { BarChart3, FileText, User, LogOut, ClipboardList, Shield, Boxes, Users, UserCog, ClipboardCheck, Sun, Moon, Building2 } from 'lucide-react'
-
-import type { TenantConfigData } from '@/lib/types'
 
 const STORE_NAV_ITEMS = [
   { href: '/', label: 'Waste', icon: ClipboardList },
   { href: '/dashboard', label: 'History', icon: BarChart3 },
   { href: '/pdf', label: 'PDF Report', icon: FileText },
-  { href: '__qc_checklist__', label: 'Tutorial', icon: ClipboardCheck },
+  { href: '/tutorial', label: 'Tutorial', icon: ClipboardCheck },
   { href: '/profile', label: 'Profil', icon: User },
 ] as const
 
@@ -31,14 +27,6 @@ export default function DesktopSidebar() {
   const { theme, toggle } = useTheme()
   const isSuperAdmin = user?.role === 'super_admin'
   const navItems = isSuperAdmin ? ADMIN_NAV_ITEMS : STORE_NAV_ITEMS
-
-  const { data: tenantData } = useQuery<TenantConfigData>({
-    queryKey: ['tenant-config'],
-    queryFn: () => apiClient.fetch<TenantConfigData>('/api/admin/tenant-config'),
-    staleTime: 5 * 60_000,
-  })
-
-  const qcChecklistUrl = tenantData?.data?.qc_checklist_url || ''
 
   const itemBase = 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
   const itemActive = 'bg-brand-50 text-brand-700 dark:bg-brand-500/[0.12] dark:text-brand-400'
@@ -67,14 +55,6 @@ export default function DesktopSidebar() {
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
         <div className="space-y-1">
           {navItems.map(({ href, label, icon: Icon }) => {
-            if (href === '__qc_checklist__') {
-              return (
-                <a key={href} href={qcChecklistUrl || '#'} target="_blank" rel="noopener noreferrer" className={`${itemBase} ${itemInactive}`}>
-                  <Icon className="size-5 shrink-0" strokeWidth={2} /><span className="hidden whitespace-nowrap group-hover/sidebar:inline">{label}</span>
-                </a>
-              )
-            }
-
             const isActive = href === '/'
               ? isSuperAdmin ? location === '/' : location === '/' || location === '/manual-waste' || location === '/auto-waste' || location === '/paste-waste'
               : location.startsWith(href)
