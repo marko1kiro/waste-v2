@@ -584,66 +584,6 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-// ─── Migrate Signatures to R2 ──────────────────────────
-
-async function handleMigrateSignatures(req: VercelRequest, res: VercelResponse, payload: any) {
-  if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
-  const sql = getSQL()
-  const rows = await sql`
-    SELECT id, store_id, name, full_name, role, signature_url
-    FROM personnel
-    WHERE signature_url IS NOT NULL AND signature_url <> ''
-    ORDER BY id ASC
-  `
-
-  const results: Array<{ id: number; name: string; status: string; oldUrl?: string; newUrl?: string; error?: string }> = []
-  const { get } = await import('@vercel/blob')
-  const { r2Upload, isVercelBlobUrl } = await import('../../server/r2.js')
-
-  for (const row of rows) {
-    const rawUrl = String(row.signature_url)
-    const match = rawUrl.match(/[?&]blobUrl=([^&]+)/)
-    const blobUrl = match ? decodeURIComponent(match[1]) : rawUrl
-
-    if (!isVercelBlobUrl(blobUrl)) {
-      results.push({ id: row.id, name: row.name, status: 'skipped', oldUrl: rawUrl })
-      continue
-    }
-
-    try {
-      const result = await get(blobUrl, { access: 'private' })
-      if (!result || result.statusCode !== 200 || !result.stream) {
-        results.push({ id: row.id, name: row.name, status: 'failed', oldUrl: blobUrl, error: `Blob download returned ${result?.statusCode}` })
-        continue
-      }
-
-      const streamResponse = new Response(result.stream)
-      const buffer = Buffer.from(await streamResponse.arrayBuffer())
-      const contentType = result.blob.contentType || 'image/jpeg'
-
-      const filename = `signatures/${Date.now()}-${row.id}-${row.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.jpg`
-      const r2Url = await r2Upload(filename, buffer, contentType)
-
-      await sql`UPDATE personnel SET signature_url = ${r2Url} WHERE id = ${row.id}`
-      results.push({ id: row.id, name: row.name, status: 'migrated', oldUrl: blobUrl, newUrl: r2Url })
-    } catch (err) {
-      results.push({ id: row.id, name: row.name, status: 'failed', oldUrl: blobUrl, error: String(err) })
-    }
-  }
-
-  const migratedCount = results.filter((r) => r.status === 'migrated').length
-  const skippedCount = results.filter((r) => r.status === 'skipped').length
-  const failedCount = results.filter((r) => r.status === 'failed').length
-
-  return res.status(200).json({
-    success: true,
-    summary: { total: rows.length, migrated: migratedCount, skipped: skippedCount, failed: failedCount },
-    details: results,
-  })
-}
-
 // ─── Stats Handler (admin overview) ────────────────────
 
 async function handleStats(req: VercelRequest, res: VercelResponse, payload: any) {
@@ -708,8 +648,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleHistory(req, res, payload, store)
       case 'api-keys':
         return await handleApiKeys(req, res, payload)
-      case 'migrate-signatures':
-        return await handleMigrateSignatures(req, res, payload)
       default:
         return res.status(404).json({ error: 'Not found' })
     }
