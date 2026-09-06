@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { get } from '@vercel/blob'
-import { getSQL, authenticateRequest, verifyBlobAccessToken, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
+import { getSQL, authenticateRequest, verifyBlobAccessToken, resolveStoreContext, getRequestedStoreId, isR2Url } from '../server/lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -34,6 +34,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `
       if (!references.length) return res.status(404).json({ error: 'File not found' })
 
+      // R2 URLs are public — fetch directly
+      if (isR2Url(blobUrl)) {
+        const response = await fetch(blobUrl)
+        if (!response.ok) return res.status(404).json({ error: 'File not found' })
+        const contentType = response.headers.get('content-type')?.split(';', 1)[0].toLowerCase() || ''
+        if (!contentType || (!contentType.startsWith('image/') && contentType !== 'application/pdf')) {
+          return res.status(415).json({ error: 'Unsupported file type' })
+        }
+        const arrayBuffer = await response.arrayBuffer()
+        const buffer = Buffer.from(arrayBuffer)
+        res.setHeader('Content-Type', contentType)
+        res.setHeader('Cache-Control', 'public, max-age=86400')
+        return res.status(200).send(buffer)
+      }
+
+      // Legacy Vercel Blob — use @vercel/blob get()
       const result = await get(blobUrl, { access: 'private' })
       if (!result || result.statusCode !== 200 || !result.stream) {
         return res.status(404).json({ error: 'File not found' })
@@ -42,8 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!contentType || (!contentType.startsWith('image/') && contentType !== 'application/pdf')) {
         return res.status(415).json({ error: 'Unsupported file type' })
       }
-      const response = new Response(result.stream)
-      const arrayBuffer = await response.arrayBuffer()
+      const streamResponse = new Response(result.stream)
+      const arrayBuffer = await streamResponse.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       res.setHeader('Content-Type', contentType)
       res.setHeader('Cache-Control', 'private, max-age=60')

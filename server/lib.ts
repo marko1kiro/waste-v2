@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { neon } from '@neondatabase/serverless'
 import { put } from '@vercel/blob'
+import { r2Upload, r2Delete, isR2Url, isVercelBlobUrl, getR2KeyFromUrl } from './r2.js'
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 
 // ─── DB ────────────────────────────────────────────────
@@ -306,12 +307,16 @@ export function getClientIP(headers: Record<string, string | string[] | undefine
   return headers['x-real-ip'] as string || 'unknown'
 }
 
-// ─── Blob ──────────────────────────────────────────────
+// ─── Blob / R2 ─────────────────────────────────────────
 export async function uploadToBlob(
   filename: string,
   buffer: Buffer,
   contentType: string,
 ): Promise<string> {
+  // New uploads go to R2 if configured, fallback to Vercel Blob
+  if (process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET) {
+    return r2Upload(filename, buffer, contentType)
+  }
   const blob = await put(filename, buffer, {
     access: 'private',
     contentType,
@@ -321,6 +326,19 @@ export async function uploadToBlob(
 
 export function getProxyUrl(blobUrl: string): string {
   return `/api/signatures?blobUrl=${encodeURIComponent(blobUrl)}`
+}
+
+/** Detect if URL is from R2 (new) or Vercel Blob (legacy). */
+export { isR2Url, isVercelBlobUrl, getR2KeyFromUrl }
+
+/** Delete a blob — routes to R2 or Vercel Blob based on URL. */
+export async function deleteBlob(url: string): Promise<void> {
+  if (isR2Url(url)) {
+    await r2Delete(getR2KeyFromUrl(url))
+  } else if (isVercelBlobUrl(url)) {
+    const { del } = await import('@vercel/blob')
+    await del(url)
+  }
 }
 
 // ─── Shared SQL / Data Helpers ─────────────────────────
