@@ -25,19 +25,79 @@ export default function Tutorial() {
       </Step>
 
       {/* Step 3 */}
-      <Step number={3} title="Copy Pesan dari WhatsApp">
-        <p>Buka chat WhatsApp yang berisi format laporan waste. <strong>Copy (salin)</strong> seluruh pesan format waste tersebut.</p>
-        <Tip>Pastikan kamu copy dari pesan yang benar. Jangan edit isinya — biarkan apa adanya.</Tip>
+      <Step number={3} title="Format Laporan Waste">
+        <p>Pastikan laporan yang kamu kirim dari WhatsApp <strong>sesuai format di bawah ini</strong>. Jika ada perbedaan, sistem akan memberitahu teks mana yang salah.</p>
+
+        <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-background">
+          <pre className="p-3 text-[11px] leading-relaxed text-text-primary">
+{`*WASTE (OPENING/MIDDLE/CLOSING/MIDNIGHT)*
+06-09-2026
+QC : NAMA LENGKAP
+MANAGER : NAMA MANAGER
+METODE : DIBUANG
+JAM PEMUSNAHAN : 14.23
+KODE LOT : 06092026
+
+*NOODLE*
+- PANGSIT GORENG : 19 PCS - PATAH & KUNCUP
+
+*BAR*
+- PEAR : 150 GR - SUSUT
+- PEAR BUSUK : 185 GRAM - BUSUK
+- APEL : 125 GR - SUSUT
+- BELIMBING : 145 GRAM - SUSUT
+- STROBERI SUSUT : 20 GRAM - SUSUT
+- CUP 16 : 1 PCS - HANDLING RESEAL
+
+*DIMSUM*
+- UDANG KEJU : 2 PCS - HANDLING JATUH
+- UDANG RAMBUTAN : 1 PCS - HANDLING JATUH
+- LUMPIA UDANG : 1 PCS - HANDLING JATUH
+
+*PRODUKSI*
+- KULIT PANGSIT : 1135 GRAM - LENGKET SOBEK`}
+          </pre>
+        </div>
+
+        <p className="mt-3 text-xs font-semibold text-text-primary">Aturan Penulisan:</p>
+        <ul className="mt-1 space-y-1.5 text-xs text-text-muted">
+          <li className="flex items-start gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+            <span><strong>Nama Station</strong> ditulis dengan huruf besar di antara tanda bintang, contoh: <code className="rounded bg-surface-alt px-1 py-0.5 text-[10px]">*NOODLE*</code></span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+            <span><strong>Item</strong> ditulis per baris dengan format: <code className="rounded bg-surface-alt px-1 py-0.5 text-[10px]">- NAMA ITEM : JML UNIT - ALASAN</code></span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+            <span><strong>Unit</strong> harus salah satu dari: PCS, GR, GRAM, KG, ML, LTR</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+            <span><strong>Alasan</strong> harus sesuai daftar yang sudah ada (contoh: SUSUT, BUSUK, HANDLING JATUH, PATAH & KUNCUP, dll)</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+            <span><strong>Shift</strong> ditulis di judul: OPENING, MIDDLE, CLOSING, atau MIDNIGHT</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
+            <span><strong>Jam Pemusnahan</strong> format HH.MM (contoh: 14.23)</span>
+          </li>
+        </ul>
+        <Tip>Jangan ubah format di atas. Copy persis seperti yang ada di WhatsApp, lalu paste ke aplikasi.</Tip>
       </Step>
 
       {/* Step 4 */}
       <Step number={4} title="Paste ke Aplikasi">
-        <p>Kembali ke aplikasi AWAS. <strong>Paste</strong> (tempel) pesan yang sudah kamu copy ke kolom yang tersedia.</p>
+        <p>Buka chat WhatsApp, <strong>copy (salin) seluruh pesan</strong> format waste, lalu kembali ke aplikasi AWAS.</p>
+        <p className="mt-2"><strong>Paste</strong> (tempel) pesan ke kolom yang tersedia. Sistem akan otomatis membaca dan mengisi data.</p>
         <p className="mt-2">Periksa hasil parse-nya:</p>
         <ul className="mt-1 list-inside list-disc space-y-1 text-xs text-text-muted">
           <li>Nama produk sudah sesuai?</li>
-          <li>Jumlah sudah benar?</li>
-          <li>Unit sudah cocok (PCS, KG, dll)?</li>
+          <li>Jumlah dan unit sudah benar?</li>
+          <li>Alasan pemusnahan sudah cocok?</li>
         </ul>
         <p className="mt-2">Kalau ada yang salah, kamu bisa <strong>edit langsung</strong> di halaman berikutnya sebelum submit.</p>
       </Step>
