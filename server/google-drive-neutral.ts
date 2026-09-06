@@ -1,17 +1,30 @@
-import { randomUUID } from 'crypto'
+import { randomUUID, sign } from 'crypto'
 
 // Drive netral untuk resto baru — TERPISAH dari module legacy CKRBUL.
-// Kredensial: GOOGLE_DRIVE_NEUTRAL_* (akun Google netral perusahaan).
+// Kredensial: GOOGLE_SERVICE_ACCOUNT_KEY (Service Account JSON key).
 // Folder: per-resto dari stores.drive_folder_id.
 
-const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_DRIVE_API_URL = 'https://www.googleapis.com/drive/v3/files'
 const GOOGLE_DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files'
+const SA_SCOPES = 'https://www.googleapis.com/auth/drive'
 
-interface NeutralDriveCredentials {
-  clientId: string
-  clientSecret: string
-  refreshToken: string
+interface ServiceAccountKey {
+  type: string
+  project_id: string
+  private_key_id: string
+  private_key: string
+  client_email: string
+  client_id: string
+  auth_uri: string
+  token_uri: string
+  auth_provider_x509_cert_url: string
+  client_x509_cert_url: string
+  universe_domain: string
+}
+
+interface NeutralDriveConfig {
+  serviceAccountKey: ServiceAccountKey
   folderId: string
 }
 
@@ -32,19 +45,44 @@ interface NeutralDriveOptions {
   folderId: string
 }
 
+function base64url(input: Buffer | string): string {
+  const buf = typeof input === 'string' ? Buffer.from(input) : input
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function createSignedJwt(saKey: ServiceAccountKey): string {
+  const now = Math.floor(Date.now() / 1000)
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const claim = base64url(JSON.stringify({
+    iss: saKey.client_email,
+    scope: SA_SCOPES,
+    aud: GOOGLE_TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  }))
+  const data = `${header}.${claim}`
+  const signature = sign('RSA-SHA256', Buffer.from(data), saKey.private_key)
+  return `${data}.${base64url(signature)}`
+}
+
 export function resolveNeutralDriveConfig(
   options: NeutralDriveOptions,
   env: NodeJS.ProcessEnv = process.env,
-): NeutralDriveCredentials {
-  const clientId = env.GOOGLE_DRIVE_NEUTRAL_CLIENT_ID?.trim()
-  const clientSecret = env.GOOGLE_DRIVE_NEUTRAL_CLIENT_SECRET?.trim()
-  const refreshToken = env.GOOGLE_DRIVE_NEUTRAL_REFRESH_TOKEN?.trim()
+): NeutralDriveConfig {
+  const rawKey = env.GOOGLE_SERVICE_ACCOUNT_KEY?.trim()
   const folderId = options.folderId.trim()
-  if (!clientId) throw new GoogleDriveNeutralError('Missing required GOOGLE_DRIVE_NEUTRAL_CLIENT_ID', 'configuration')
-  if (!clientSecret) throw new GoogleDriveNeutralError('Missing required GOOGLE_DRIVE_NEUTRAL_CLIENT_SECRET', 'configuration')
-  if (!refreshToken) throw new GoogleDriveNeutralError('Missing required GOOGLE_DRIVE_NEUTRAL_REFRESH_TOKEN', 'configuration')
+  if (!rawKey) throw new GoogleDriveNeutralError('Missing required GOOGLE_SERVICE_ACCOUNT_KEY', 'configuration')
   if (!folderId) throw new GoogleDriveNeutralError('Missing required per-store drive folder id', 'configuration')
-  return { clientId, clientSecret, refreshToken, folderId }
+  let serviceAccountKey: ServiceAccountKey
+  try {
+    serviceAccountKey = JSON.parse(rawKey)
+  } catch {
+    throw new GoogleDriveNeutralError('GOOGLE_SERVICE_ACCOUNT_KEY is not valid JSON', 'configuration')
+  }
+  if (!serviceAccountKey.client_email || !serviceAccountKey.private_key) {
+    throw new GoogleDriveNeutralError('GOOGLE_SERVICE_ACCOUNT_KEY missing client_email or private_key', 'configuration')
+  }
+  return { serviceAccountKey, folderId }
 }
 
 function upstreamError(operation: string, status?: number): GoogleDriveNeutralError {
@@ -61,20 +99,19 @@ let cachedAccessToken: CachedAccessToken | null = null
 let refreshInFlight: Promise<string> | null = null
 
 async function refreshAccessToken(): Promise<string> {
-  const credentials = resolveNeutralDriveConfig({ folderId: 'env-only' })
-  const response = await fetch(GOOGLE_OAUTH_TOKEN_URL, {
+  const config = resolveNeutralDriveConfig({ folderId: 'env-only' })
+  const jwt = createSignedJwt(config.serviceAccountKey)
+  const response = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: credentials.clientId,
-      client_secret: credentials.clientSecret,
-      refresh_token: credentials.refreshToken,
-      grant_type: 'refresh_token',
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
     }),
   })
-  if (!response.ok) throw upstreamError('OAuth token refresh', response.status)
+  if (!response.ok) throw upstreamError('SA token exchange', response.status)
   const body = await response.json() as { access_token?: unknown; expires_in?: unknown }
-  if (typeof body.access_token !== 'string' || !body.access_token) throw upstreamError('OAuth token refresh')
+  if (typeof body.access_token !== 'string' || !body.access_token) throw upstreamError('SA token exchange')
   const expiresIn = typeof body.expires_in === 'number' && Number.isFinite(body.expires_in) ? body.expires_in : 300
   cachedAccessToken = { value: body.access_token, expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1000 }
   return cachedAccessToken.value

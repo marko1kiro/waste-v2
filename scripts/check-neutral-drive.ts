@@ -7,23 +7,34 @@ import assert from 'node:assert/strict'
 const { resolveNeutralDriveConfig } = await import('../server/google-drive-neutral.ts')
 
 // Missing env -> configuration error
-delete process.env.GOOGLE_DRIVE_NEUTRAL_CLIENT_ID
-delete process.env.GOOGLE_DRIVE_NEUTRAL_CLIENT_SECRET
-delete process.env.GOOGLE_DRIVE_NEUTRAL_REFRESH_TOKEN
+delete process.env.GOOGLE_SERVICE_ACCOUNT_KEY
 assert.throws(
   () => resolveNeutralDriveConfig({ folderId: 'abc123' }, process.env),
-  (err: unknown) => err instanceof Error && err.message.includes('GOOGLE_DRIVE_NEUTRAL_CLIENT_ID'),
+  (err: unknown) => err instanceof Error && err.message.includes('GOOGLE_SERVICE_ACCOUNT_KEY'),
   'missing env must throw configuration error naming the variable',
 )
 
-// Env present + folder -> full config
-process.env.GOOGLE_DRIVE_NEUTRAL_CLIENT_ID = 'neutral-client'
-process.env.GOOGLE_DRIVE_NEUTRAL_CLIENT_SECRET = 'neutral-secret'
-process.env.GOOGLE_DRIVE_NEUTRAL_REFRESH_TOKEN = 'neutral-refresh'
+// Invalid JSON -> configuration error
+process.env.GOOGLE_SERVICE_ACCOUNT_KEY = 'not-json'
+assert.throws(
+  () => resolveNeutralDriveConfig({ folderId: 'abc123' }, process.env),
+  (err: unknown) => err instanceof Error && err.message.includes('not valid JSON'),
+  'invalid JSON must throw configuration error',
+)
+
+// JSON missing required fields -> configuration error
+process.env.GOOGLE_SERVICE_ACCOUNT_KEY = JSON.stringify({ type: 'service_account', client_email: 'sa@test.iam' })
+assert.throws(
+  () => resolveNeutralDriveConfig({ folderId: 'abc123' }, process.env),
+  (err: unknown) => err instanceof Error && err.message.includes('private_key'),
+  'JSON missing private_key must throw configuration error',
+)
+
+// Valid SA key + folder -> full config
+const fakeKey = JSON.stringify({ client_email: 'sa@test.iam', private_key: '-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n' })
+process.env.GOOGLE_SERVICE_ACCOUNT_KEY = fakeKey
 const config = resolveNeutralDriveConfig({ folderId: 'folderXYZ' }, process.env)
-assert.equal(config.clientId, 'neutral-client')
-assert.equal(config.clientSecret, 'neutral-secret')
-assert.equal(config.refreshToken, 'neutral-refresh')
+assert.equal(config.serviceAccountKey.client_email, 'sa@test.iam')
 assert.equal(config.folderId, 'folderXYZ')
 
 // Missing folder -> configuration error
