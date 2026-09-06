@@ -130,15 +130,27 @@ export default function PdfDownload() {
     }
   }
 
+  async function fetchPdfBlob(url: string): Promise<Blob> {
+    const isR2 = url.includes('images.gacoanku.my.id') || (!url.includes('blob.vercel-storage.com') && url.startsWith('https://'))
+    const fetchUrl = isR2 ? url : `/api/signatures?blobUrl=${encodeURIComponent(url)}`
+    const headers: Record<string, string> = isR2 ? {} : { Authorization: `Bearer ${apiClient.getToken() || ''}` }
+    const response = await fetch(fetchUrl, { headers })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return response.blob()
+  }
+
   async function downloadBlobPdf(pdf: { filename: string; url: string }) {
-    const response = await fetch(`/api/signatures?blobUrl=${encodeURIComponent(pdf.url)}`, { headers: { Authorization: `Bearer ${apiClient.getToken() || ''}` } })
-    if (!response.ok) throw new Error(`Gagal ambil ${pdf.filename} (HTTP ${response.status})`)
-    const url = URL.createObjectURL(await response.blob())
-    const link = document.createElement('a')
-    link.href = url
-    link.download = pdf.filename
-    link.click()
-    URL.revokeObjectURL(url)
+    try {
+      const blob = await fetchPdfBlob(pdf.url)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = pdf.filename
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      throw new Error(`Gagal ambil ${pdf.filename}: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleDownloadMonth() {
@@ -150,9 +162,8 @@ export default function PdfDownload() {
       const files: Record<string, Uint8Array> = {}
       for (const [index, pdf] of pdfs.entries()) {
         setProgress({ current: index + 1, total: pdfs.length + 1, label: `Ambil PDF ${index + 1}/${pdfs.length}...` })
-        const response = await fetch(`/api/signatures?blobUrl=${encodeURIComponent(pdf.url)}`, { headers: { Authorization: `Bearer ${apiClient.getToken() || ''}` } })
-        if (!response.ok) throw new Error(`Gagal ambil ${pdf.filename} (HTTP ${response.status})`)
-        files[pdf.filename.replace(/^\d+-/, '')] = new Uint8Array(await response.arrayBuffer())
+        const blob = await fetchPdfBlob(pdf.url)
+        files[pdf.filename.replace(/^\d+-/, '')] = new Uint8Array(await blob.arrayBuffer())
       }
       const url = URL.createObjectURL(new Blob([zipSync(files)], { type: 'application/zip' }))
       const link = document.createElement('a')

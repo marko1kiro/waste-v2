@@ -117,3 +117,63 @@ export async function uploadR2Pdf(storeCode: string, filename: string, pdf: Buff
   const key = buildR2PdfKey(storeCode, filename, date)
   return r2Upload(key, pdf, 'application/pdf')
 }
+
+export interface R2PdfItem {
+  filename: string
+  url: string
+  downloadUrl: string
+  size: number
+  uploadedAt: string
+}
+
+/** List all PDF backups in R2 for a specific store and month (YYYY-MM). */
+export async function listR2Pdfs(storeCode: string, month: string): Promise<R2PdfItem[]> {
+  if (!R2_BUCKET || !R2_PUBLIC_DOMAIN) return []
+  const safeCode = (storeCode || 'STORE').toUpperCase().replace(/[^A-Z0-9_-]/g, '')
+  const client = getR2Client()
+
+  // We check both new structure (STORE/YYYY-MM/pdf-backup/) and transitional (pdf-backup/STORE/)
+  const prefixes = [
+    `${safeCode}/${month}/pdf-backup/`,
+    `pdf-backup/${safeCode}/`,
+  ]
+
+  const items: R2PdfItem[] = []
+  const seenKeys = new Set<string>()
+
+  for (const prefix of prefixes) {
+    const url = `${R2_ENDPOINT}/${R2_BUCKET}?list-type=2&prefix=${encodeURIComponent(prefix)}`
+    const response = await client.fetch(url, { method: 'GET' })
+    if (!response.ok) continue
+
+    const text = await response.text().catch(() => '')
+    // Parse S3 ListBucketResult XML using regex (zero-dependency)
+    const contentsMatches = text.match(/<Contents>[\s\S]*?<\/Contents>/g) || []
+
+    for (const content of contentsMatches) {
+      const keyMatch = content.match(/<Key>(.*?)<\/Key>/)
+      const sizeMatch = content.match(/<Size>(\d+)<\/Size>/)
+      const dateMatch = content.match(/<LastModified>(.*?)<\/LastModified>/)
+
+      if (!keyMatch) continue
+      const key = keyMatch[1]
+      if (!key.endsWith('.pdf') || seenKeys.has(key)) continue
+      seenKeys.add(key)
+
+      const size = sizeMatch ? parseInt(sizeMatch[1], 10) : 0
+      const uploadedAt = dateMatch ? dateMatch[1] : new Date().toISOString()
+      const filename = key.split('/').pop() || ''
+
+      const publicUrl = getPublicUrl(key)
+      items.push({
+        filename,
+        url: publicUrl,
+        downloadUrl: publicUrl,
+        size,
+        uploadedAt,
+      })
+    }
+  }
+
+  return items.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+}
