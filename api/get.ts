@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { list } from '@vercel/blob'
 import { getSQL, authenticateRequest, shiftStatusQuerySchema, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
+import { listR2Pdfs } from '../server/r2.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -122,36 +123,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Format month harus YYYY-MM (contoh: 2026-06)' })
     }
 
-    try {
-      const result = await list({
-        prefix: 'pdf-backup/',
-        limit: 100,
-        mode: 'expanded',
-      })
+    let storeCode = 'CKRBUL'
+    if (storeId !== null) {
+      const storeRows = await sql`SELECT code FROM stores WHERE id = ${storeId} LIMIT 1`
+      if (storeRows.length) storeCode = String(storeRows[0].code || 'STORE').toUpperCase()
+    }
 
-      const pdfs = (result.blobs || [])
-        .filter((blob) => {
-          const pathname = blob.pathname || ''
-          if (!pathname.startsWith('pdf-backup/') || !pathname.endsWith('.pdf')) return false
-          const uploadedAt = blob.uploadedAt ? new Date(blob.uploadedAt) : null
-          if (!uploadedAt) return false
-          const ym = `${uploadedAt.getFullYear()}-${String(uploadedAt.getMonth() + 1).padStart(2, '0')}`
-          return ym === month
+    try {
+      // 1. Fetch from Cloudflare R2
+      const r2Pdfs = await listR2Pdfs(storeCode, month)
+
+      // 2. Fetch from legacy Vercel Blob (fallback for old CKRBUL records)
+      let blobPdfs: typeof r2Pdfs = []
+      try {
+        const result = await list({
+          prefix: 'pdf-backup/',
+          limit: 100,
+          mode: 'expanded',
         })
-        .map((blob) => ({
-          filename: blob.pathname?.split('/').pop() || '',
-          url: blob.url,
-          downloadUrl: blob.downloadUrl,
-          size: blob.size,
-          uploadedAt: blob.uploadedAt,
-        }))
-        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+
+        blobPdfs = (result.blobs || [])
+          .filter((blob) => {
+            const pathname = blob.pathname || ''
+            if (!pathname.startsWith('pdf-backup/') || !pathname.endsWith('.pdf')) return false
+            const uploadedAt = blob.uploadedAt ? new Date(blob.uploadedAt) : null
+            if (!uploadedAt) return false
+            const ym = `${uploadedAt.getFullYear()}-${String(uploadedAt.getMonth() + 1).padStart(2, '0')}`
+            return ym === month
+          })
+          .map((blob) => ({
+            filename: blob.pathname?.split('/').pop() || '',
+            url: blob.url,
+            downloadUrl: blob.downloadUrl,
+            size: blob.size,
+            uploadedAt: blob.uploadedAt ? new Date(blob.uploadedAt).toISOString() : new Date().toISOString(),
+          }))
+      } catch (blobErr) {
+        console.warn('[list-blob-pdfs] Legacy Blob fetch skipped:', blobErr)
+      }
+
+      // 3. Merge without filename duplicates (R2 takes precedence)
+      const seen = new Set<string>()
+      const merged = []
+      for (const pdf of [...r2Pdfs, ...blobPdfs]) {
+        if (!seen.has(pdf.filename)) {
+          seen.add(pdf.filename)
+          merged.push(pdf)
+        }
+      }
+
+      merged.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
 
       return res.status(200).json({
         success: true,
         month,
-        count: pdfs.length,
-        pdfs,
+        count: merged.length,
+        pdfs: merged,
       })
     } catch (err) {
       console.error('[list-blob-pdfs] Error:', err)
