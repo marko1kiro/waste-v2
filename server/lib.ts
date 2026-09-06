@@ -314,7 +314,9 @@ export async function uploadToBlob(
   contentType: string,
 ): Promise<string> {
   // New uploads go to R2 if configured, fallback to Vercel Blob
-  if (process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET) {
+  const r2Ready = process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET
+  console.info(`[upload] target=${r2Ready ? 'R2' : 'VercelBlob'} | R2_ACCOUNT_ID=${process.env.R2_ACCOUNT_ID ? 'set' : 'unset'} | R2_BUCKET=${process.env.R2_BUCKET ? 'set' : 'unset'}`)
+  if (r2Ready) {
     return r2Upload(filename, buffer, contentType)
   }
   const blob = await put(filename, buffer, {
