@@ -576,6 +576,37 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
+// ─── Stats Handler (admin overview) ────────────────────
+
+async function handleStats(req: VercelRequest, res: VercelResponse, payload: any) {
+  if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  const sql = getSQL()
+
+  const rows = await sql`
+    SELECT
+      s.id, s.code, s.name, s.status, s.drive_account, s.features,
+      (SELECT COUNT(*)::int FROM users u WHERE u.store_id = s.id AND u.status = 'active') AS user_count,
+      (SELECT COUNT(*)::int FROM personnel p WHERE p.store_id = s.id AND p.status = 'active') AS personnel_count,
+      (SELECT COUNT(*)::int FROM station_items si WHERE si.store_id = s.id AND si.status = 'active') AS item_count,
+      (SELECT COUNT(*)::int FROM product_destructions pd WHERE pd.store_id = s.id AND pd.business_date >= CURRENT_DATE - INTERVAL '30 days') AS entries_30d,
+      (SELECT MAX(business_date)::text FROM product_destructions pd WHERE pd.store_id = s.id) AS last_entry_date
+    FROM stores s
+    WHERE s.status = 'active'
+    ORDER BY s.id ASC
+  `
+
+  const totals = {
+    restos: rows.length,
+    users: rows.reduce((sum: number, r: any) => sum + (r.user_count || 0), 0),
+    personnel: rows.reduce((sum: number, r: any) => sum + (r.personnel_count || 0), 0),
+    items: rows.reduce((sum: number, r: any) => sum + (r.item_count || 0), 0),
+    entries_30d: rows.reduce((sum: number, r: any) => sum + (r.entries_30d || 0), 0),
+  }
+
+  return res.status(200).json({ success: true, restos: rows, totals })
+}
+
 // ─── Main Route Router ─────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -603,6 +634,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleTenantConfig(req, res, payload, store)
       case 'stores':
         return await handleStores(req, res, payload)
+      case 'stats':
+        return await handleStats(req, res, payload)
       case 'history':
         return await handleHistory(req, res, payload, store)
       case 'api-keys':
