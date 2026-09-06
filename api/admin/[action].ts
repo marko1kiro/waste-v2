@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
-import { del } from '@vercel/blob'
 import { apiKeyCreateStatement, apiKeyExpireStatement, createApiKey, decryptApiKey, encryptApiKey, getSQL, authenticateRequest, hashApiKey, hashPassword, logActivity, getClientIP, verifyPassword, resolveStoreContext, getRequestedStoreId, type ResolvedStore } from '../../server/lib.js'
 
 // ─── Schemas ───────────────────────────────────────────
@@ -539,9 +538,13 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
       if (!row.dokumentasi_urls) continue
       const urls = String(row.dokumentasi_urls).split('\n').filter(Boolean)
       for (const url of urls) {
+        // Proxy format: /api/signatures?blobUrl=...
         const match = url.match(/[?&]blobUrl=([^&]+)/)
         if (match) {
           blobUrls.push(decodeURIComponent(match[1]))
+        } else if (url.includes('http')) {
+          // Direct URL (R2 or Vercel Blob)
+          blobUrls.push(url)
         }
       }
     }
@@ -549,7 +552,8 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
     const uniqueBlobUrls = [...new Set(blobUrls)]
     if (uniqueBlobUrls.length > 0) {
       try {
-        await del(uniqueBlobUrls)
+        const { deleteBlob } = await import('../../server/lib.js')
+        await Promise.all(uniqueBlobUrls.map((u) => deleteBlob(u).catch((err) => console.error('[history] Blob delete error:', u, err))))
       } catch (err) {
         console.error('[history] Blob delete error:', err)
       }
