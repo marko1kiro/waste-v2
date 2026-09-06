@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
+import { StoreSwitcher } from '@/components/ui/store-switcher'
+import { getAdminStoreId, withStoreId } from '@/lib/admin-store'
 import ConfirmDialog from '@/components/ui/confirm-dialog'
 import { Search } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -40,8 +42,8 @@ export default function AdminUsers() {
   const [page, setPage] = useState(1)
 
   const { data, refetch, isLoading, error } = useQuery<{ success: boolean; data: UserRow[] }>({
-    queryKey: ['admin-users'],
-    queryFn: () => apiClient.fetch('/api/admin/users'),
+    queryKey: ['admin-users', getAdminStoreId()],
+    queryFn: () => apiClient.fetch(withStoreId('/api/admin/users', getAdminStoreId())),
   })
 
   const { data: storesData } = useQuery<{ success: boolean; data: StoreOption[] }>({
@@ -123,9 +125,12 @@ export default function AdminUsers() {
     <div className="mx-auto max-w-7xl py-2">
       <ConfirmDialog open={Boolean(deleting)} title="Hapus akun store?" description={`Akun ${deleting?.username || ''} akan dihapus.`} onConfirm={deleteUser} onCancel={() => setDeleting(null)} />
 
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-warning-600 dark:text-warning-400">Admin • Akun Store</h1>
-        <p className="text-xs text-text-muted">Kelola akun login buat user store & admin.</p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">Admin • Akun Store</h1>
+          <p className="text-xs text-text-muted">Kelola akun login buat user store & admin.</p>
+        </div>
+        <StoreSwitcher invalidateKeys={[['admin-users'], ['admin-stores']]} />
       </div>
 
       <section className="mb-5 rounded-xl border border-border bg-surface p-4 shadow-theme-sm">
@@ -152,7 +157,7 @@ export default function AdminUsers() {
 
         {isLoading && <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-muted">Bentar ya...</div>}
         {error && <div className="rounded-lg border border-error-200 bg-error-50 dark:border-error-500/20 dark:bg-error-500/10 px-3 py-3 text-sm text-error-600 dark:text-error-400">Waduh gagal muat akun.</div>}
-        {!isLoading && !error && rows.length === 0 && <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-muted">Belum ada akun.</div>}
+        {!isLoading && !error && rows.length === 0 && <div className="rounded-lg border border-border bg-background px-3 py-3 text-sm text-text-muted">{getAdminStoreId() ? 'Belum ada user di Resto ini.' : 'Belum ada akun.'}</div>}
 
         {!isLoading && !error && rows.length > 0 && (
           <div className="space-y-3">
