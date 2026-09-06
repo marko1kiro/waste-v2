@@ -44,21 +44,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let rows
     if (startDate && endDate) {
-      rows = await sql`
-        SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
-               jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
-        FROM product_destructions
-        WHERE business_date >= ${startDate} AND business_date <= ${endDate} AND store_id = ${storeId ?? 0}
-        ORDER BY business_date DESC, created_at ASC
-      `
+      rows = storeId !== null
+        ? await sql`
+            SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
+                   jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
+            FROM product_destructions
+            WHERE business_date >= ${startDate} AND business_date <= ${endDate} AND store_id = ${storeId}
+            ORDER BY business_date DESC, created_at ASC
+          `
+        : await sql`
+            SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
+                   jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
+            FROM product_destructions
+            WHERE business_date >= ${startDate} AND business_date <= ${endDate}
+            ORDER BY business_date DESC, created_at ASC
+          `
     } else {
-      rows = await sql`
-        SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
-               jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
-        FROM product_destructions
-        WHERE business_date >= CURRENT_DATE - INTERVAL '30 days' AND store_id = ${storeId ?? 0}
-        ORDER BY business_date DESC, created_at ASC
-      `
+      rows = storeId !== null
+        ? await sql`
+            SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
+                   jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
+            FROM product_destructions
+            WHERE business_date >= CURRENT_DATE - INTERVAL '30 days' AND store_id = ${storeId}
+            ORDER BY business_date DESC, created_at ASC
+          `
+        : await sql`
+            SELECT business_date::text AS business_date, shift, kategori_induk, nama_produk,
+                   jumlah_produk, unit, paraf_qc_name, submitted_by, created_at
+            FROM product_destructions
+            WHERE business_date >= CURRENT_DATE - INTERVAL '30 days'
+            ORDER BY business_date DESC, created_at ASC
+          `
     }
 
     const dateSet = new Set<string>()

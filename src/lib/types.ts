@@ -63,3 +63,29 @@ export interface DashboardData {
   topProducts: Array<{ name: string; count: number; qty: number }>
   lastEntry: { date: string; qc: string; station: string; shift: string } | null
 }
+
+export interface AdminStoreStat {
+  id: number
+  code: string
+  name: string
+  status: string
+  drive_account: 'legacy' | 'neutral'
+  features: { manual_mode: boolean; catalog: boolean }
+  user_count: number
+  personnel_count: number
+  item_count: number
+  entries_30d: number
+  last_entry_date: string | null
+}
+
+export interface AdminStatsData {
+  success: boolean
+  restos: AdminStoreStat[]
+  totals: {
+    restos: number
+    users: number
+    personnel: number
+    items: number
+    entries_30d: number
+  }
+}
