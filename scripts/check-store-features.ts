@@ -22,7 +22,7 @@ assert.equal(pasteOnly(legacyDefault), false, 'features kosong default full (CKR
 // manual mode
 assert.equal(canManual(ckrbul), true)
 assert.equal(canManual(pasteResto), false)
-assert.equal(canManual(superAdmin), true)
+assert.equal(canManual(superAdmin), false, 'null store defaults to paste-only (safe during loading)')
 assert.equal(canManual(legacyDefault), true)
 
 // catalog
