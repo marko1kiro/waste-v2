@@ -465,7 +465,7 @@ export function validateItemPayload(body: Record<string, unknown>, partial = fal
   if (!partial || product !== undefined) if (typeof product !== 'string' || !product.trim()) return { success: false, message: 'nama_produk wajib diisi.' }
   if (!partial || unit !== undefined) if (typeof unit !== 'string' || !unit.trim()) return { success: false, message: 'unit wajib diisi.' }
   if (!partial || reason !== undefined) if (typeof reason !== 'string' || !reason.trim()) return { success: false, message: 'alasan_pemusnahan wajib diisi.' }
-  if (!partial || quantity !== undefined) if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity <= 0) return { success: false, message: 'jumlah_produk harus angka positif.' }
+  if (!partial || quantity !== undefined) if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity <= 0) return { success: false, message: 'jumlah_produk harus angka bulat positif.' }
   if (!partial || qc !== undefined) if (typeof qc !== 'string' || !qc.trim()) return { success: false, message: 'paraf_qc_name wajib diisi.' }
   if (!partial || manager !== undefined) if (typeof manager !== 'string' || !manager.trim()) return { success: false, message: 'paraf_manager_name wajib diisi.' }
   return { success: true, data: body }
@@ -491,7 +491,7 @@ export function validateWasteSubmission(body: Record<string, unknown>): { succes
   if (lengths.some((list) => list.length !== productList.length)) return { success: false, message: 'Semua daftar item harus sejajar.' }
   if (productList.some((value) => typeof value !== 'string' || !value.trim())) return { success: false, message: 'Nama produk wajib diisi.' }
   if (alasanPemusnahanList.some((value) => typeof value !== 'string' || !value.trim())) return { success: false, message: 'Alasan pemusnahan wajib diisi.' }
-  if (jumlahProdukList.some((value) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0)) return { success: false, message: 'Jumlah produk harus angka positif.' }
+  if (jumlahProdukList.some((value) => typeof value !== 'number' || !Number.isInteger(value) || value <= 0)) return { success: false, message: 'Jumlah produk harus angka bulat positif.' }
   if (typeof body.parafQCName !== 'string' || !body.parafQCName.trim() || typeof body.parafManagerName !== 'string' || !body.parafManagerName.trim()) return { success: false, message: 'QC dan Manager wajib diisi.' }
   return { success: true, data: { ...body, tanggal, shift, kategoriInduk, productList, jumlahProdukList, kodeProdukList, unitList, metodePemusnahanList, alasanPemusnahanList, jamTanggalPemusnahanList, dokumentasiUrls } }
 }

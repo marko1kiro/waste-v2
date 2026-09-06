@@ -529,21 +529,25 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
     }
 
     const rows = await sql`
-      SELECT dokumentasi_urls, kategori_induk FROM product_destructions
+      SELECT dokumentasi_urls, paraf_qc_url, paraf_manager_url FROM product_destructions
       WHERE business_date::text = ${date} AND shift = ${shift} AND store_id = ${store.storeId}
     `
 
     const blobUrls: string[] = []
     for (const row of rows) {
+      for (const field of [row.paraf_qc_url, row.paraf_manager_url]) {
+        if (!field) continue
+        const m = String(field).match(/[?&]blobUrl=([^&]+)/)
+        if (m) blobUrls.push(decodeURIComponent(m[1]))
+        else if (String(field).includes('http')) blobUrls.push(String(field))
+      }
       if (!row.dokumentasi_urls) continue
       const urls = String(row.dokumentasi_urls).split('\n').filter(Boolean)
       for (const url of urls) {
-        // Proxy format: /api/signatures?blobUrl=...
         const match = url.match(/[?&]blobUrl=([^&]+)/)
         if (match) {
           blobUrls.push(decodeURIComponent(match[1]))
         } else if (url.includes('http')) {
-          // Direct URL (R2 or Vercel Blob)
           blobUrls.push(url)
         }
       }

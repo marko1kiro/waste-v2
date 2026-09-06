@@ -23,7 +23,7 @@ function getPublicUrl(key: string): string {
 
 /** Check if a URL is an R2 URL (not old Vercel Blob). */
 export function isR2Url(url: string): boolean {
-  if (!url) return false
+  if (!url || !R2_PUBLIC_DOMAIN) return false
   return url.includes(R2_PUBLIC_DOMAIN) && !url.includes('blob.vercel-storage.com')
 }
 
