@@ -221,9 +221,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (midnightComplete) {
       if (isNeutral) {
         // Neutral stores: check R2 backup
-        const existingR2 = await findR2Pdf(storeCode, filename)
+        const existingR2 = await findR2Pdf(storeCode, filename, date)
         if (existingR2) {
-          const r2Response = await downloadR2Pdf(storeCode, filename)
+          const r2Response = await downloadR2Pdf(storeCode, filename, date)
           if (r2Response) {
             void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update R2 PDF status:', error))
             return streamR2Pdf(res, filename, r2Response)
@@ -287,7 +287,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (isNeutral) {
         // Neutral stores: upload backup to R2
         try {
-          await uploadR2Pdf(storeCode, filename, Buffer.from(pdf))
+          await uploadR2Pdf(storeCode, filename, Buffer.from(pdf), date)
           await markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not finalize R2 PDF status:', error))
         } catch (error) {
           console.error('[generate-pdf] R2 PDF upload failed:', error)
