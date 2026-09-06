@@ -3,7 +3,7 @@ import { Readable } from 'stream'
 import { get } from '@vercel/blob'
 import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId, isR2Url } from '../server/lib.js'
 import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from '../server/google-drive.js'
-import { downloadNeutralDrivePdf, findNeutralDrivePdf, GoogleDriveNeutralError, uploadNeutralDrivePdf } from '../server/google-drive-neutral.js'
+import { findR2Pdf, downloadR2Pdf, uploadR2Pdf } from '../server/r2.js'
 import { buildPdfFilename, renderDailyPdf, type PdfItem } from '../shared/pdf-renderer.js'
 import { resolvePdfSignatures, type SignaturePersonnel } from '../shared/pdf-signature-resolver.js'
 
@@ -85,7 +85,7 @@ async function loadAssets(urls: string[], optional = false): Promise<Map<string,
   return assets
 }
 
-type PdfResponseSource = 'google-drive' | 'generated-drive' | 'generated-on-demand'
+type PdfResponseSource = 'google-drive' | 'r2' | 'generated-drive' | 'generated-r2' | 'generated-on-demand'
 
 function setPdfHeaders(res: VercelResponse, filename: string, contentLength: string | undefined, source: PdfResponseSource) {
   res.setHeader('Content-Type', 'application/pdf')
@@ -95,7 +95,7 @@ function setPdfHeaders(res: VercelResponse, filename: string, contentLength: str
   res.setHeader('Cache-Control', 'private, no-store')
 }
 
-function sendPdf(res: VercelResponse, filename: string, pdf: Buffer | Uint8Array, source: Exclude<PdfResponseSource, 'google-drive'>) {
+function sendPdf(res: VercelResponse, filename: string, pdf: Buffer | Uint8Array, source: Exclude<PdfResponseSource, 'google-drive' | 'r2'>) {
   setPdfHeaders(res, filename, String(pdf.byteLength), source)
   return res.status(200).send(Buffer.from(pdf))
 }
@@ -107,6 +107,19 @@ function streamGoogleDrivePdf(res: VercelResponse, filename: string, response: R
   stream.on('error', (error) => {
     console.error('[generate-pdf] Google Drive download stream failed:', error)
     if (!res.headersSent) res.status(502).json({ error: 'Google Drive PDF download failed' })
+    else res.destroy(error)
+  })
+  stream.pipe(res)
+  return res
+}
+
+function streamR2Pdf(res: VercelResponse, filename: string, response: Response) {
+  setPdfHeaders(res, filename, response.headers.get('content-length') || undefined, 'r2')
+  res.status(200)
+  const stream = Readable.fromWeb(response.body as import('stream/web').ReadableStream)
+  stream.on('error', (error) => {
+    console.error('[generate-pdf] R2 PDF download stream failed:', error)
+    if (!res.headersSent) res.status(502).json({ error: 'R2 PDF download failed' })
     else res.destroy(error)
   })
   stream.pipe(res)
@@ -145,20 +158,18 @@ async function markDriveGenerationComplete(date: string, storeId: number): Promi
   `
 }
 
-async function waitForDrivePdf(filename: string, store: { drive_account: string; drive_folder_id: string }) {
+async function waitForDrivePdf(filename: string) {
   const delays = [0, 500, 900, 1400, 2000, 2800]
   for (const delay of delays) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-    const existing = store.drive_account === 'legacy'
-      ? await findGoogleDrivePdf(filename)
-      : await findNeutralDrivePdf(filename, store.drive_folder_id)
+    const existing = await findGoogleDrivePdf(filename)
     if (existing) return existing
   }
   return null
 }
 
-function isDriveError(error: unknown): error is GoogleDriveBackupError | GoogleDriveNeutralError {
-  return error instanceof GoogleDriveBackupError || error instanceof GoogleDriveNeutralError
+function isDriveError(error: unknown): error is GoogleDriveBackupError {
+  return error instanceof GoogleDriveBackupError
 }
 
 function driveFailureMessage(error: unknown): string {
@@ -202,46 +213,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const store = storeRows[0]
     if (!store) return res.status(404).json({ error: 'Store tidak ditemukan' })
     const isNeutral = store.drive_account !== 'legacy'
+    const storeCode = String(store.code || 'STORE')
     const config = (configRows[0]?.extra_config as Record<string, unknown> | undefined) || {}
-    const filename = buildPdfFilename(String(config.store_code || 'STORE'), date)
-    const driveStore = { drive_account: String(store.drive_account), drive_folder_id: String(store.drive_folder_id || '') }
+    const filename = buildPdfFilename(String(config.store_code || storeCode), date)
 
-    // Preserve the current on-demand behavior for dates that are not complete.
-    // In particular, do not even validate credentials or make a Google request here.
+    // Check existing backup if MIDNIGHT is complete
     if (midnightComplete) {
-      let existing
-      try {
-        existing = isNeutral
-          ? await findNeutralDrivePdf(filename, driveStore.drive_folder_id)
-          : await findGoogleDrivePdf(filename)
-        if (existing) {
-          const drivePdf = isNeutral
-            ? await downloadNeutralDrivePdf(existing.id)
-            : await downloadGoogleDrivePdf(existing.id)
-          void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update Drive PDF status:', error))
-          return streamGoogleDrivePdf(res, filename, drivePdf)
+      if (isNeutral) {
+        // Neutral stores: check R2 backup
+        const existingR2 = await findR2Pdf(storeCode, filename)
+        if (existingR2) {
+          const r2Response = await downloadR2Pdf(storeCode, filename)
+          if (r2Response) {
+            void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update R2 PDF status:', error))
+            return streamR2Pdf(res, filename, r2Response)
+          }
         }
-        driveGenerationClaimed = await claimDriveGeneration(date, storeId)
-        if (!driveGenerationClaimed) {
-          const uploadedByAnotherRequest = await waitForDrivePdf(filename, driveStore)
-          if (uploadedByAnotherRequest) {
-            const drivePdf = isNeutral
-              ? await downloadNeutralDrivePdf(uploadedByAnotherRequest.id)
-              : await downloadGoogleDrivePdf(uploadedByAnotherRequest.id)
+      } else {
+        // Legacy CKRBUL: check Google Drive backup (UNTOUCHED)
+        try {
+          const existing = await findGoogleDrivePdf(filename)
+          if (existing) {
+            const drivePdf = await downloadGoogleDrivePdf(existing.id)
+            void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update Drive PDF status:', error))
             return streamGoogleDrivePdf(res, filename, drivePdf)
           }
-          return res.status(503).json({ error: 'PDF sedang diamankan ke Google Drive oleh request lain. Coba download lagi dalam beberapa detik.' })
+          driveGenerationClaimed = await claimDriveGeneration(date, storeId)
+          if (!driveGenerationClaimed) {
+            const uploadedByAnotherRequest = await waitForDrivePdf(filename)
+            if (uploadedByAnotherRequest) {
+              const drivePdf = await downloadGoogleDrivePdf(uploadedByAnotherRequest.id)
+              return streamGoogleDrivePdf(res, filename, drivePdf)
+            }
+            return res.status(503).json({ error: 'PDF sedang diamankan ke Google Drive oleh request lain. Coba download lagi dalam beberapa detik.' })
+          }
+        } catch (error) {
+          console.error('[generate-pdf] Google Drive lookup failed:', error)
+          if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
+          driveGenerationClaimed = false
+          return res.status(503).json({ error: driveFailureMessage(error) })
         }
-      } catch (error) {
-        console.error('[generate-pdf] Google Drive lookup failed:', error)
-        if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
-        driveGenerationClaimed = false
-        return res.status(503).json({ error: driveFailureMessage(error) })
       }
     }
-
-    // Preserve the current on-demand behavior for dates that are not complete.
-    // In particular, do not even validate credentials or make a Google request here.
 
     const stats = resolvePdfSignatures(grouped as unknown as Record<string, PdfItem[]>, personnelRows as SignaturePersonnel[])
     const signatureUrls = [...new Set(Object.values(grouped).flatMap((items) => items.flatMap((item) => [String(item.parafQC || ''), String(item.parafManager || '')])).filter(Boolean))]
@@ -261,7 +274,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pdf = renderDailyPdf({
       date,
       storeName: String(configRows[0]?.store_name || storeName),
-      storeCode: String(config.store_code || 'STORE'),
+      storeCode: String(config.store_code || storeCode),
       publicUrl: String(config.public_url || process.env.PUBLIC_URL || 'https://www.gacoanku.my.id'),
       checklistUrl: String(config.qc_checklist_url || ''),
       grouped: grouped as unknown as Record<string, PdfItem[]>,
@@ -271,20 +284,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.info('[generate-pdf] Signature resolution summary:', stats)
 
     if (midnightComplete) {
-      try {
-        if (isNeutral) await uploadNeutralDrivePdf(filename, Buffer.from(pdf), driveStore.drive_folder_id)
-        else await uploadGoogleDrivePdf(filename, Buffer.from(pdf))
-        driveGenerationClaimed = false // Keep the successful lease/status for future requests.
-        await markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not finalize Drive PDF status:', error))
-      } catch (error) {
-        console.error('[generate-pdf] Google Drive upload failed:', error)
-        if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
-        driveGenerationClaimed = false
-        return res.status(503).json({ error: driveFailureMessage(error) })
+      if (isNeutral) {
+        // Neutral stores: upload backup to R2
+        try {
+          await uploadR2Pdf(storeCode, filename, Buffer.from(pdf))
+          await markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not finalize R2 PDF status:', error))
+        } catch (error) {
+          console.error('[generate-pdf] R2 PDF upload failed:', error)
+          // R2 backup failure is non-fatal for download, but log it
+        }
+      } else {
+        // Legacy CKRBUL: upload backup to Google Drive (UNTOUCHED)
+        try {
+          await uploadGoogleDrivePdf(filename, Buffer.from(pdf))
+          driveGenerationClaimed = false
+          await markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not finalize Drive PDF status:', error))
+        } catch (error) {
+          console.error('[generate-pdf] Google Drive upload failed:', error)
+          if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
+          driveGenerationClaimed = false
+          return res.status(503).json({ error: driveFailureMessage(error) })
+        }
       }
     }
 
-    return sendPdf(res, filename, pdf, midnightComplete ? 'generated-drive' : 'generated-on-demand')
+    return sendPdf(res, filename, pdf, midnightComplete ? (isNeutral ? 'generated-r2' : 'generated-drive') : 'generated-on-demand')
   } catch (error) {
     if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
     console.error('[generate-pdf] Error:', error)

@@ -74,3 +74,43 @@ export async function r2Delete(key: string): Promise<void> {
     console.error(`[r2] Delete failed for ${key} (HTTP ${response.status}): ${text}`)
   }
 }
+
+// ─── PDF Backup in R2 (Neutral Stores) ──────────────────
+
+/** Build canonical R2 storage key for a store's PDF backup. */
+export function buildR2PdfKey(storeCode: string, filename: string): string {
+  const safeCode = (storeCode || 'STORE').toUpperCase().replace(/[^A-Z0-9_-]/g, '')
+  return `pdf-backup/${safeCode}/${filename}`
+}
+
+/** Check if a PDF exists in R2. Returns public URL if found, null otherwise. */
+export async function findR2Pdf(storeCode: string, filename: string): Promise<{ key: string; url: string } | null> {
+  if (!R2_BUCKET || !R2_PUBLIC_DOMAIN) return null
+  const key = buildR2PdfKey(storeCode, filename)
+  const client = getR2Client()
+  const url = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`
+
+  const response = await client.fetch(url, { method: 'HEAD' })
+  if (response.status === 200) {
+    return { key, url: getPublicUrl(key) }
+  }
+  return null
+}
+
+/** Download a PDF directly from R2. */
+export async function downloadR2Pdf(storeCode: string, filename: string): Promise<Response | null> {
+  if (!R2_BUCKET) return null
+  const key = buildR2PdfKey(storeCode, filename)
+  const client = getR2Client()
+  const url = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`
+
+  const response = await client.fetch(url, { method: 'GET' })
+  if (!response.ok) return null
+  return response
+}
+
+/** Upload a PDF to R2. Returns public URL. */
+export async function uploadR2Pdf(storeCode: string, filename: string, pdf: Buffer): Promise<string> {
+  const key = buildR2PdfKey(storeCode, filename)
+  return r2Upload(key, pdf, 'application/pdf')
+}
