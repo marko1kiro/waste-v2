@@ -17,7 +17,7 @@
 
 ## 1. Auth
 
-### POST `/api/auth/login`
+### POST `/api/login`
 Login user.
 
 **Request Body:**
@@ -107,15 +107,20 @@ Menerima data waste dan foto dokumentasi.
 
 ---
 
-## 3. Shift Status & PDF Unlock
+## 3. Generic Getter
 
-### GET `/api/shift-status`
-Mengambil status per-shift untuk suatu business date.
-Endpoint ini menentukan apakah PDF button harus unlocked atau tidak.
+### GET `/api/get`
+Endpoint multi-aksi (parameter `action`). Semua aksi butuh auth JWT/API key
+dan ter-scope ke store pemanggil.
+
+### `?action=shift-status`
+Mengambil status per-shift untuk suatu business date. Endpoint ini menentukan
+apakah tombol PDF harus unlocked atau tidak.
 
 **Query Params:**
 | Param | Tipe | Required | Deskripsi |
 |-------|------|----------|-----------|
+| `action` | string | ✅ | `shift-status` |
 | `date` | string | ✅ | Business date `YYYY-MM-DD` |
 
 **Response 200:**
@@ -133,11 +138,54 @@ Endpoint ini menentukan apakah PDF button harus unlocked atau tidak.
 }
 ```
 
+> Tidak ada endpoint terpisah `GET /api/shift-status` — status shift
+> selalu dibaca lewat aksi ini dari tabel `daily_records`.
+
 ### Logic:
 ```
 pdfUnlocked = (MIDNIGHT.done === true)
 ```
 PDF hanya unlock ketika **MIDNIGHT sudah di-submit**.
+
+### `?action=station-items`
+Mengambil katalog item per station untuk store pemanggil.
+
+**Query Params:**
+| Param | Tipe | Required | Deskripsi |
+|-------|------|----------|-----------|
+| `action` | string | ✅ | `station-items` |
+| `station` | string | ❌ | `NOODLE` / `DIMSUM` / `BAR` / `PRODUKSI` (tanpa filter = semua station) |
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": [
+    { "id": 1, "station": "NOODLE", "nama_produk": "MIE GACOAN LEVEL 1", "unit": "PORSI", "kode_lot_wajib": false, "is_manual": false, "sort_order": 1, "status": "active" }
+  ]
+}
+```
+
+### `?action=list-blob-pdfs`
+Daftar PDF backup per bulan (R2 didahulukan, fallback Vercel Blob legacy).
+
+**Query Params:**
+| Param | Tipe | Required | Deskripsi |
+|-------|------|----------|-----------|
+| `action` | string | ✅ | `list-blob-pdfs` |
+| `month` | string | ✅ | `YYYY-MM` |
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "month": "2026-06",
+  "count": 3,
+  "pdfs": [
+    { "filename": "BA-2026-06-09.pdf", "url": "https://...", "downloadUrl": "https://...", "size": 12345, "uploadedAt": "2026-06-10T01:00:00Z" }
+  ]
+}
+```
 
 ---
 

@@ -31,6 +31,32 @@ const PDF_PROGRESS_PHASES: PdfProgressPhase[] = [
 
 const wait = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 
+// apiClient.fetch menolak respons non-JSON, jadi download binary (PDF) memakai
+// fetch mentah — tapi dengan timeout 65 detik (endpoint bisa jalan 60 detik)
+// dan 401 handling yang memicu alur logout yang sama seperti apiClient
+// (clearAuth + event 'auth:session-expired').
+const PDF_FETCH_TIMEOUT_MS = 65_000
+
+async function fetchPdfResponse(url: string, headers: Record<string, string> = {}): Promise<Response> {
+  let response: Response
+  try {
+    response = await fetch(url, { headers, signal: AbortSignal.timeout(PDF_FETCH_TIMEOUT_MS) })
+  } catch (err) {
+    if (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new Error('Kelamaan nih. Coba lagi ya.')
+    }
+    throw err
+  }
+  if (response.status === 401 && apiClient.getToken()) {
+    apiClient.clearAuth()
+    window.dispatchEvent(new CustomEvent('auth:session-expired'))
+    const error = new Error('Sesi abis nih. Yuk login lagi.') as Error & { status?: number }
+    error.status = 401
+    throw error
+  }
+  return response
+}
+
 function getReadyLabel(source: string | null): string {
   if (source === 'google-drive') return 'PDF ditemukan di Google Drive. Mengunduh file...'
   if (source === 'generated-drive') return 'PDF selesai dibuat dan diamankan. Mengunduh file...'
@@ -95,7 +121,7 @@ export default function PdfDownload() {
     }, 400)
 
     try {
-      const response = await fetch(`/api/generate-pdf?date=${currentDate}`, { headers: { Authorization: `Bearer ${apiClient.getToken() || ''}` } })
+      const response = await fetchPdfResponse(`/api/generate-pdf?date=${currentDate}`, { Authorization: `Bearer ${apiClient.getToken() || ''}` })
       window.clearInterval(progressTimer)
       if (!response.ok) {
         const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
@@ -134,7 +160,7 @@ export default function PdfDownload() {
     const isR2 = url.includes('images.gacoanku.my.id') || (!url.includes('blob.vercel-storage.com') && url.startsWith('https://'))
     const fetchUrl = isR2 ? url : `/api/signatures?blobUrl=${encodeURIComponent(url)}`
     const headers: Record<string, string> = isR2 ? {} : { Authorization: `Bearer ${apiClient.getToken() || ''}` }
-    const response = await fetch(fetchUrl, { headers })
+    const response = await fetchPdfResponse(fetchUrl, headers)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     return response.blob()
   }

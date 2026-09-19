@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Readable } from 'stream'
 import { get } from '@vercel/blob'
-import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId, isR2Url } from '../server/lib.js'
+import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
 import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from '../server/google-drive.js'
-import { findR2Pdf, downloadR2Pdf, uploadR2Pdf } from '../server/r2.js'
+import { findR2Pdf, downloadR2Pdf, uploadR2Pdf, resolveR2Key, r2GetObject } from '../server/r2.js'
 import { buildPdfFilename, renderDailyPdf, type PdfItem } from '../shared/pdf-renderer.js'
 import { resolvePdfSignatures, type SignaturePersonnel } from '../shared/pdf-signature-resolver.js'
 
@@ -31,7 +31,12 @@ function blobUrl(url: string): string | null {
 function supportedImageType(contentType: string | null | undefined, url: string): string | null {
   const type = contentType?.split(';', 1)[0].toLowerCase()
   if (type && supportedImageTypes.has(type)) return type
-  const extension = new URL(url).pathname.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
+  let extension: string | undefined
+  try {
+    extension = new URL(url).pathname.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
+  } catch {
+    extension = undefined
+  }
   return extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : null
 }
 
@@ -42,10 +47,12 @@ async function loadPrivateAsset(url: string): Promise<{ asset: string; bytes: nu
   let contentType: string | null
   let bytes: Buffer
 
-  if (isR2Url(privateUrl)) {
-    // R2 URLs are public — fetch directly
-    const response = await fetch(privateUrl)
-    if (!response.ok) throw new Error('R2 asset unavailable')
+  const r2Key = resolveR2Key(privateUrl)
+  if (r2Key) {
+    // R2 objects (legacy public URLs and new private key refs) are fetched
+    // server-side with R2 credentials; redirects are never followed (H2/H3).
+    const response = await r2GetObject(r2Key)
+    if (!response) throw new Error('R2 asset unavailable')
     contentType = supportedImageType(response.headers.get('content-type'), privateUrl)
     if (!contentType) throw new Error('Unsupported PDF image type')
     bytes = Buffer.from(await response.arrayBuffer())

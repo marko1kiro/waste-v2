@@ -21,10 +21,59 @@ function getPublicUrl(key: string): string {
   return `https://${R2_PUBLIC_DOMAIN}/${key}`
 }
 
-/** Check if a URL is an R2 URL (not old Vercel Blob). */
+/** Check if a URL is an R2 URL — exact hostname comparison (H2 SSRF fix). */
 export function isR2Url(url: string): boolean {
   if (!url || !R2_PUBLIC_DOMAIN) return false
-  return url.includes(R2_PUBLIC_DOMAIN) && !url.includes('blob.vercel-storage.com')
+  try {
+    return new URL(url).hostname.toLowerCase() === R2_PUBLIC_DOMAIN.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Submit-time allowlist for documentation/signature URLs (H2 SSRF mitigation).
+ * Accepts only: our own proxy refs, exact R2 public host, or Vercel Blob hosts.
+ */
+export function isAllowedUploadUrl(url: string): boolean {
+  if (typeof url !== 'string' || !url) return false
+  if (url.startsWith('/api/signatures?blobUrl=')) return true
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'https:') return false
+  const host = parsed.hostname.toLowerCase()
+  if (R2_PUBLIC_DOMAIN && host === R2_PUBLIC_DOMAIN.toLowerCase()) return true
+  return host === 'blob.vercel-storage.com' || host.endsWith('.blob.vercel-storage.com')
+}
+
+/** Check if a blob reference is an R2 object key (new private proxy refs), not a URL. */
+export function isR2KeyRef(ref: string): boolean {
+  return (
+    typeof ref === 'string' &&
+    ref.length > 0 &&
+    !ref.includes('://') &&
+    /^[A-Za-z0-9][A-Za-z0-9/_.\-]*$/.test(ref) &&
+    !ref.includes('..')
+  )
+}
+
+/**
+ * Resolve an R2 object key from a blob reference:
+ * legacy public R2 URLs → key, new private proxy key refs → key, else ''.
+ */
+export function resolveR2Key(ref: string): string {
+  const fromUrl = getR2KeyFromUrl(ref)
+  if (fromUrl) return fromUrl
+  return isR2KeyRef(ref) ? ref : ''
+}
+
+/** Private proxy reference for an R2 object — what new uploads return (H3). */
+export function getR2ProxyRef(key: string): string {
+  return `/api/signatures?blobUrl=${encodeURIComponent(key)}`
 }
 
 /** Check if a URL is a legacy Vercel Blob URL. */
@@ -39,7 +88,7 @@ export function getR2KeyFromUrl(url: string): string {
   return ''
 }
 
-/** Upload a buffer to R2. Returns the public URL. */
+/** Upload a buffer to R2. Returns the object key — never a public URL (H3 private-by-default). */
 export async function r2Upload(key: string, buffer: Buffer, contentType: string): Promise<string> {
   if (!R2_BUCKET) throw new Error('Missing R2_BUCKET env')
   const client = getR2Client()
@@ -51,7 +100,8 @@ export async function r2Upload(key: string, buffer: Buffer, contentType: string)
       'Content-Type': contentType,
       'Content-Length': String(buffer.length),
     },
-    body: buffer,
+    // Uint8Array wrap: aws4fetch types its body as BodyInit (fixes pre-existing type error)
+    body: new Uint8Array(buffer),
   })
 
   if (!response.ok) {
@@ -59,7 +109,21 @@ export async function r2Upload(key: string, buffer: Buffer, contentType: string)
     throw new Error(`R2 upload failed (HTTP ${response.status}): ${text}`)
   }
 
-  return getPublicUrl(key)
+  return key
+}
+
+/**
+ * Fetch a private R2 object server-side with R2 credentials (H3).
+ * Never follows redirects; returns null unless the object is fetched OK.
+ */
+export async function r2GetObject(key: string): Promise<Response | null> {
+  if (!key || !R2_BUCKET) return null
+  const client = getR2Client()
+  const url = `${R2_ENDPOINT}/${R2_BUCKET}/${key}`
+
+  const response = await client.fetch(url, { method: 'GET', redirect: 'manual' })
+  if (!response.ok) return null
+  return response
 }
 
 /** Delete an object from R2 by key. No-op if key is empty. */
@@ -112,7 +176,7 @@ export async function downloadR2Pdf(storeCode: string, filename: string, date?: 
   return response
 }
 
-/** Upload a PDF to R2 scoped by resto & month. Returns public URL. */
+/** Upload a PDF to R2 scoped by resto & month. Returns the object key. */
 export async function uploadR2Pdf(storeCode: string, filename: string, pdf: Buffer, date?: string): Promise<string> {
   const key = buildR2PdfKey(storeCode, filename, date)
   return r2Upload(key, pdf, 'application/pdf')

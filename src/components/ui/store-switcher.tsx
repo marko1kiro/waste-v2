@@ -38,7 +38,7 @@ export function StoreSwitcher({ invalidateKeys }: { invalidateKeys?: readonly st
         className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-brand-500"
         aria-label="Pilih resto aktif"
       >
-        <option value="">CKRBUL (default)</option>
+        <option value="">Pilih resto…</option>
         {stores.map((s) => (
           <option key={s.id} value={s.id}>{s.code} — {s.name}</option>
         ))}

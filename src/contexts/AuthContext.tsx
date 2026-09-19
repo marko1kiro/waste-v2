@@ -23,6 +23,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastActivityRef = useRef<number>(Date.now())
   const warningShownRef = useRef(false)
 
+  // CATATAN KEAMANAN (L5): gating role di UI ini UI-only — data user/role
+  // berasal dari localStorage dan bisa di-spoof. Keamanan sebenarnya
+  // (otorisasi per role & per store) ditegakkan server-side di setiap
+  // endpoint API (lihat server/lib.ts: resolveStoreContext).
   const isAuthenticated = user !== null && apiClient.getToken() !== null
 
   const logout = useCallback(() => {
@@ -38,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token: string
       user: AuthUser
       store: StoreInfo | null
+      message?: string
     }>('/api/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
@@ -51,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(res.user)
       setStoreState(res.store ?? null)
       warningShownRef.current = false
+    } else {
+      throw new Error(res.message || 'Login gagal')
     }
   }, [])
 

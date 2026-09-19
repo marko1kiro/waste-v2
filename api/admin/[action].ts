@@ -41,6 +41,27 @@ const updateConfigSchema = z.object({
   qc_checklist_url: z.string().trim().max(500).optional().default(''),
 })
 
+// L3: zod validation untuk station-items (seperti handler lain)
+const createStationItemSchema = z.object({
+  station: z.string().trim().min(1, 'Station wajib diisi').max(20, 'Station maksimal 20 karakter'),
+  nama_produk: z.string().trim().min(2, 'Nama produk minimal 2 karakter').max(200, 'Nama produk maksimal 200 karakter'),
+  unit: z.string().trim().min(1).max(20).optional().default('PCS'),
+  kode_lot_wajib: z.boolean().optional().default(false),
+  is_manual: z.boolean().optional().default(false),
+  sort_order: z.number().int().optional().default(0),
+})
+
+const updateStationItemSchema = z.object({
+  id: z.number().int().positive('ID tidak valid'),
+  station: z.string().trim().min(1).max(20).optional(),
+  nama_produk: z.string().trim().min(2).max(200).optional(),
+  unit: z.string().trim().min(1).max(20).optional(),
+  kode_lot_wajib: z.boolean().optional(),
+  is_manual: z.boolean().optional(),
+  sort_order: z.number().int().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+})
+
 // ─── Handlers ──────────────────────────────────────────
 
 async function handlePersonnel(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
@@ -247,24 +268,26 @@ async function handleStationItems(req: VercelRequest, res: VercelResponse, paylo
   }
 
   if (req.method === 'POST') {
-    const { station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order } = req.body
-    if (!station || !nama_produk) return res.status(400).json({ error: 'station dan nama_produk wajib diisi' })
+    const parsed = createStationItemSchema.safeParse(req.body)
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
+    const { station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order } = parsed.data
     const rows = await sql`
       INSERT INTO station_items (store_id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status)
-      VALUES (${store.storeId}, ${String(station).toUpperCase()}, ${String(nama_produk).toUpperCase()}, ${unit || 'PCS'}, ${Boolean(kode_lot_wajib)}, ${Boolean(is_manual)}, ${sort_order || 0}, 'active')
+      VALUES (${store.storeId}, ${station.toUpperCase()}, ${nama_produk.toUpperCase()}, ${unit}, ${kode_lot_wajib}, ${is_manual}, ${sort_order}, 'active')
       RETURNING id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status
     `
     return res.status(201).json({ success: true, data: rows[0] })
   }
 
   if (req.method === 'PUT') {
-    const { id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status } = req.body
-    if (!id) return res.status(400).json({ error: 'id wajib diisi' })
+    const parsed = updateStationItemSchema.safeParse(req.body)
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message })
+    const { id, station, nama_produk, unit, kode_lot_wajib, is_manual, sort_order, status } = parsed.data
     const rows = await sql`
       UPDATE station_items
       SET
-        station = COALESCE(${station ? String(station).toUpperCase() : null}, station),
-        nama_produk = COALESCE(${nama_produk ? String(nama_produk).toUpperCase() : null}, nama_produk),
+        station = COALESCE(${station ? station.toUpperCase() : null}, station),
+        nama_produk = COALESCE(${nama_produk ? nama_produk.toUpperCase() : null}, nama_produk),
         unit = COALESCE(${unit ?? null}, unit),
         kode_lot_wajib = COALESCE(${kode_lot_wajib ?? null}, kode_lot_wajib),
         is_manual = COALESCE(${is_manual ?? null}, is_manual),
@@ -289,6 +312,8 @@ async function handleStationItems(req: VercelRequest, res: VercelResponse, paylo
 
 async function handleTenantConfig(req: VercelRequest, res: VercelResponse, payload: any, store: ResolvedStore) {
   if (store.storeId === null) return res.status(400).json({ error: 'store_id wajib untuk tenant-config' })
+  // L4: role check konsisten dengan handler lain — tetap ter-scope ke store sendiri
+  if (payload.role !== 'super_admin' && payload.role !== 'admin_store') return res.status(403).json({ error: 'Forbidden' })
   const sql = getSQL()
 
   if (req.method === 'GET') {
@@ -427,13 +452,16 @@ async function handleApiKeys(req: VercelRequest, res: VercelResponse, payload: a
     return res.status(200).json({ success: true, rawKey: decryptApiKey({ ciphertext: String(key.key_ciphertext), iv: String(key.key_iv), tag: String(key.key_tag) }) })
   }
   if (req.method === 'POST') {
+    // H7: hanya super_admin yang boleh membuat API key
+    if (payload.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' })
     const name = String(req.body?.name || '').trim()
     const expiry = String(req.body?.expiry || 'never')
-    const days = expiry === '7' ? 7 : expiry === '30' ? 30 : expiry === '90' ? 90 : expiry === 'never' ? null : undefined
-    if (!name || name.length > 100 || days === undefined) return res.status(400).json({ error: 'Nama atau masa berlaku API key tidak valid.' })
+    // H7: tolak 'never' dan TTL > 90 hari
+    const days = expiry === '7' ? 7 : expiry === '30' ? 30 : expiry === '90' ? 90 : undefined
+    if (!name || name.length > 100 || days === undefined) return res.status(400).json({ error: 'Nama atau masa berlaku API key tidak valid. Masa berlaku maksimal 90 hari.' })
     const created = createApiKey()
     const encrypted = encryptApiKey(created.rawKey)
-    const expiresAt = days === null ? null : new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
     try {
       const transaction = await sql.transaction((tx) => [
         tx(apiKeyExpireStatement, [user.id, name]),

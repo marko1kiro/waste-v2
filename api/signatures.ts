@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { get } from '@vercel/blob'
-import { getSQL, authenticateRequest, verifyBlobAccessToken, resolveStoreContext, getRequestedStoreId, isR2Url } from '../server/lib.js'
+import { getSQL, authenticateRequest, verifyBlobAccessToken, resolveStoreContext, getRequestedStoreId, resolveR2Key, r2GetObject, type AuthPayload } from '../server/lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -12,32 +12,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (blobUrl) {
     const signed = token ? verifyBlobAccessToken(token) : null
     const authorizedBlobUrl = signed?.blobUrl === blobUrl
+    let authPayload: AuthPayload | null = null
     if (!authorizedBlobUrl) {
-      const payload = await authenticateRequest(req, true)
-      if (!payload) return res.status(401).json({ error: 'Unauthorized' })
+      authPayload = await authenticateRequest(req, true)
+      if (!authPayload) return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    // H6: scope the DB reference check to the caller's store (super_admin excepted).
+    // Signed-token access is short-lived and bound to a single URL → no caller
+    // identity exists there, so it stays unscoped by design.
+    let scopeStoreId: number | null | undefined
+    if (authPayload && authPayload.role !== 'super_admin') {
+      try {
+        const resolved = resolveStoreContext({ role: authPayload.role, storeId: authPayload.storeId ?? null }, getRequestedStoreId(req))
+        scopeStoreId = resolved.storeId
+      } catch {
+        return res.status(403).json({ error: 'Store context missing' })
+      }
     }
 
     try {
       const sql = getSQL()
       const proxyUrl = `/api/signatures?blobUrl=${encodeURIComponent(blobUrl)}`
+      const scopedStoreId = scopeStoreId === undefined ? null : scopeStoreId
+      const unscoped = scopeStoreId === undefined
       const references = await sql`
         SELECT 1
-        WHERE EXISTS (SELECT 1 FROM personnel WHERE signature_url IN (${blobUrl}, ${proxyUrl}))
+        WHERE EXISTS (SELECT 1 FROM personnel WHERE signature_url IN (${blobUrl}, ${proxyUrl}) AND (store_id = ${scopedStoreId} OR ${unscoped}))
            OR EXISTS (
               SELECT 1 FROM product_destructions
-              WHERE paraf_qc_url IN (${blobUrl}, ${proxyUrl})
+              WHERE (paraf_qc_url IN (${blobUrl}, ${proxyUrl})
                  OR paraf_manager_url IN (${blobUrl}, ${proxyUrl})
                  OR ${blobUrl} = ANY(string_to_array(COALESCE(dokumentasi_urls, ''), E'\\n'))
-                 OR ${proxyUrl} = ANY(string_to_array(COALESCE(dokumentasi_urls, ''), E'\\n'))
+                 OR ${proxyUrl} = ANY(string_to_array(COALESCE(dokumentasi_urls, ''), E'\\n')))
+                AND (store_id = ${scopedStoreId} OR ${unscoped})
             )
         LIMIT 1
       `
       if (!references.length) return res.status(404).json({ error: 'File not found' })
 
-      // R2 URLs are public — fetch directly
-      if (isR2Url(blobUrl)) {
-        const response = await fetch(blobUrl)
-        if (!response.ok) return res.status(404).json({ error: 'File not found' })
+      // H3: R2 is private-by-default — legacy public R2 URLs and new private key
+      // refs are both fetched server-side with R2 credentials, never exposed publicly.
+      const r2Key = resolveR2Key(blobUrl)
+      if (r2Key) {
+        const response = await r2GetObject(r2Key)
+        if (!response) return res.status(404).json({ error: 'File not found' })
         const contentType = response.headers.get('content-type')?.split(';', 1)[0].toLowerCase() || ''
         if (!contentType || (!contentType.startsWith('image/') && contentType !== 'application/pdf')) {
           return res.status(415).json({ error: 'Unsupported file type' })
@@ -45,7 +64,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const arrayBuffer = await response.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
         res.setHeader('Content-Type', contentType)
-        res.setHeader('Cache-Control', 'public, max-age=86400')
+        res.setHeader('X-Content-Type-Options', 'nosniff')
+        res.setHeader('Cache-Control', 'private, max-age=300')
         return res.status(200).send(buffer)
       }
 
@@ -62,6 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const arrayBuffer = await streamResponse.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       res.setHeader('Content-Type', contentType)
+      res.setHeader('X-Content-Type-Options', 'nosniff')
       res.setHeader('Cache-Control', 'private, max-age=60')
       return res.status(200).send(buffer)
     } catch (err) {
