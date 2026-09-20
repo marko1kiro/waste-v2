@@ -30,7 +30,13 @@ export default function Profile() {
   const loadKeys = () => apiClient.fetch<{ data: ApiKey[] }>('/api/admin/api-keys').then((data) => setKeys(data.data)).catch((err: Error) => setError(err.message))
   useEffect(() => { void loadKeys() }, [])
   const closeRawKey = () => { setRawKey(''); setPassword(''); setRevealId(null) }
-  const copy = async (value: string) => { await navigator.clipboard.writeText(value) }
+  const copy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal menyalin ke clipboard.')
+    }
+  }
   const create = async () => {
     setError('')
     try {

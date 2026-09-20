@@ -5,7 +5,7 @@
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "http://127.0.0.1:20128/v1",
-        "apiKey": "sk-25ef2d56e9bc6d82-r3tu7a-172810bc"
+        "apiKey": "${NINE_ROUTER_API_KEY}"
       },
       "models": {
         "XDIRGA_AGENTS": {

@@ -1,6 +1,16 @@
 import { randomUUID } from 'crypto'
 
-const GOOGLE_DRIVE_FOLDER_ID = '1R0xINfBaFmgogIEsfzS20ivd-nzWwiBw'
+// L8: folder ID dari env, bukan hardcoded — gagal keras dengan pesan jelas bila unset
+function getDriveFolderId(): string {
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID?.trim()
+  if (!folderId) {
+    throw new GoogleDriveBackupError(
+      'GOOGLE_DRIVE_FOLDER_ID belum dikonfigurasi. Set environment variable GOOGLE_DRIVE_FOLDER_ID.',
+      'configuration',
+    )
+  }
+  return folderId
+}
 const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_DRIVE_API_URL = 'https://www.googleapis.com/drive/v3/files'
 const GOOGLE_DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files'
@@ -99,7 +109,7 @@ export function escapeGoogleDriveQueryLiteral(value: string): string {
 }
 
 export async function findGoogleDrivePdf(filename: string): Promise<GoogleDrivePdf | null> {
-  const query = `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and name = '${escapeGoogleDriveQueryLiteral(filename)}' and mimeType = 'application/pdf' and trashed = false`
+  const query = `'${getDriveFolderId()}' in parents and name = '${escapeGoogleDriveQueryLiteral(filename)}' and mimeType = 'application/pdf' and trashed = false`
   const params = new URLSearchParams({
     q: query,
     fields: 'files(id,name,mimeType,createdTime)',
@@ -126,7 +136,7 @@ export async function downloadGoogleDrivePdf(fileId: string): Promise<Response> 
 export async function uploadGoogleDrivePdf(filename: string, pdf: Buffer): Promise<GoogleDrivePdf> {
   if (!pdf.length || pdf.subarray(0, 5).toString() !== '%PDF-') throw new GoogleDriveBackupError('Refusing to upload a non-PDF file', 'upstream')
   const boundary = `awas-${randomUUID()}`
-  const metadata = JSON.stringify({ name: filename, parents: [GOOGLE_DRIVE_FOLDER_ID], mimeType: 'application/pdf' })
+  const metadata = JSON.stringify({ name: filename, parents: [getDriveFolderId()], mimeType: 'application/pdf' })
   const body = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`, 'utf8'),
     Buffer.from(`--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`, 'utf8'),

@@ -163,7 +163,17 @@ export function renderDailyPdf(input: DailyPdfInput): Uint8Array {
     return { shift, stations: [...stations.entries()].filter(([, urls]) => urls.length) }
   }).filter(({ stations }) => stations.length)
   if (documentationByShift.length || input.checklistUrl) {
-     const absoluteUrl = (url: string) => input.assetLinks.get(url) || new URL(url, input.publicUrl).href
+    // H2: only emit https: links into the PDF — drop javascript:, data:, etc.
+    const sanitizeLinkTarget = (raw: string | undefined): string | null => {
+      if (!raw) return null
+      try {
+        const parsed = new URL(raw, input.publicUrl)
+        return parsed.protocol === 'https:' ? parsed.href : null
+      } catch {
+        return null
+      }
+    }
+    const absoluteUrl = (url: string): string | null => sanitizeLinkTarget(input.assetLinks.get(url) ?? url)
 
     doc.addPage()
     doc.setFontSize(10)
@@ -189,10 +199,15 @@ export function renderDailyPdf(input: DailyPdfInput): Uint8Array {
         urls.forEach((url, imageIndex) => {
           const target = absoluteUrl(url)
           const label = `- Gambar ${imageIndex + 1}`
-          doc.setTextColor(0, 102, 204)
           doc.setFont('helvetica', 'normal')
-          doc.textWithLink(label, x + 3, y, { url: target })
-          doc.line(x + 3, y + 0.5, x + 3 + doc.getTextWidth(label), y + 0.5)
+          if (target) {
+            doc.setTextColor(0, 102, 204)
+            doc.textWithLink(label, x + 3, y, { url: target })
+            doc.line(x + 3, y + 0.5, x + 3 + doc.getTextWidth(label), y + 0.5)
+          } else {
+            doc.setTextColor(0, 0, 0)
+            doc.text(label, x + 3, y)
+          }
           y += 4
         })
         y += 2
@@ -201,9 +216,11 @@ export function renderDailyPdf(input: DailyPdfInput): Uint8Array {
     doc.setTextColor(0, 0, 0)
     if (input.checklistUrl) {
       const target = absoluteUrl(input.checklistUrl)
-      doc.setTextColor(0, 102, 204)
-      doc.textWithLink('QC Checklist', margin, 198, { url: target })
-      doc.line(margin, 198.5, margin + doc.getTextWidth('QC Checklist'), 198.5)
+      if (target) {
+        doc.setTextColor(0, 102, 204)
+        doc.textWithLink('QC Checklist', margin, 198, { url: target })
+        doc.line(margin, 198.5, margin + doc.getTextWidth('QC Checklist'), 198.5)
+      }
     }
   }
   return new Uint8Array(doc.output('arraybuffer'))

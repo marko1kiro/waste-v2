@@ -38,7 +38,7 @@ export const submitWasteSchema = z.object({
   tanggal: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal YYYY-MM-DD'),
   kategoriInduk: z.enum(STATIONS),
   shift: z.enum(SHIFTS).default('OPENING'),
-  storeName: z.string().default('BEKASI KP. BULU'),
+  storeName: z.string().default(''),
   items: z.array(wasteItemSchema).min(1, 'Minimal 1 produk'),
   parafQCUrl: z.string().default(''),
   parafQCName: z.string().default(''),

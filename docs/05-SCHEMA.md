@@ -209,7 +209,106 @@ CREATE INDEX idx_activity_logs_action ON activity_logs(action);
 
 ---
 
-## 7. Init SQL
+## 7. Tabel: `api_keys`
+
+Menyimpan API key persisten (format `awas_live_...`). Lookup via SHA-256 hash;
+nilai asli terenkripsi envelope AES-256-GCM (butuh re-auth password untuk reveal).
+
+```sql
+CREATE TABLE api_keys (
+    id             SERIAL PRIMARY KEY,
+    user_id        INTEGER NOT NULL REFERENCES users(id),
+    name           TEXT NOT NULL,
+    key_prefix     TEXT NOT NULL,
+    key_hash       TEXT NOT NULL UNIQUE,
+    key_ciphertext TEXT NOT NULL,
+    key_iv         TEXT NOT NULL,
+    key_tag        TEXT NOT NULL,
+    expires_at     TIMESTAMPTZ,
+    revoked_at     TIMESTAMPTZ,
+    last_used_at   TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_api_keys_user_active ON api_keys(user_id) WHERE revoked_at IS NULL;
+CREATE UNIQUE INDEX uq_api_keys_active_name ON api_keys(user_id, name) WHERE revoked_at IS NULL;
+```
+
+| Kolom | Tipe | Catatan |
+|-------|------|---------|
+| `user_id` | INTEGER | FK ke `users.id`; key mewarisi role user ini |
+| `key_prefix` | TEXT | Prefix untuk identifikasi (mask `prefix••••`) |
+| `key_hash` | TEXT | SHA-256 dari key asli (kolom lookup) |
+| `key_ciphertext` / `key_iv` / `key_tag` | TEXT | Envelope AES-256-GCM (dienkripsi dengan `API_KEY_ENCRYPTION_KEY`) |
+| `expires_at` | TIMESTAMPTZ | NULL = tidak kedaluwarsa (opsi `never`) |
+| `revoked_at` | TIMESTAMPTZ | NULL = masih aktif; max 5 key aktif per user |
+
+---
+
+## 8. Tabel: `waste_submission_locks`
+
+Anti double-submit per station/shift/date (dipakai bersama `pg_advisory_xact_lock`
+dan `ON CONFLICT DO NOTHING`).
+
+```sql
+CREATE TABLE waste_submission_locks (
+    business_date DATE NOT NULL,
+    shift         TEXT NOT NULL,
+    station       TEXT NOT NULL,
+    PRIMARY KEY (business_date, shift, station)
+);
+```
+
+Setelah migrasi multi-resto: kolom `store_id INTEGER REFERENCES stores(id)`
+ditambahkan + unique per store.
+
+---
+
+## 9. Tabel: `stores` + kolom `store_id` (multi-resto)
+
+Dibuat oleh `scripts/migrate-multi-resto.ts`. Setiap store punya kode unik,
+akun Drive, dan folder ID sendiri.
+
+```sql
+CREATE TABLE stores (
+    id              SERIAL PRIMARY KEY,
+    code            TEXT NOT NULL UNIQUE,   -- contoh: 'CKRBUL'
+    name            TEXT NOT NULL,          -- contoh: 'GACOAN KAMPUNG BULU'
+    drive_account   TEXT NOT NULL DEFAULT 'legacy',  -- 'legacy' | 'neutral'
+    drive_folder_id TEXT NOT NULL DEFAULT '',
+    features        JSONB NOT NULL DEFAULT '{}',
+    status          TEXT NOT NULL DEFAULT 'active',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+Kolom `store_id INTEGER REFERENCES stores(id)` ditambahkan ke tabel:
+`product_destructions`, `daily_records`, `personnel`, `station_items`,
+`tenant_configs` (semua `NOT NULL` setelah backfill ke store `CKRBUL`)
+dan `users` (nullable; `super_admin` = NULL = cross-resto).
+
+Index tambahan:
+```sql
+CREATE INDEX idx_pd_store_date_shift ON product_destructions(store_id, business_date, shift);
+CREATE INDEX idx_dr_store_date ON daily_records(store_id, business_date);
+CREATE INDEX idx_personnel_store ON personnel(store_id);
+CREATE INDEX idx_station_items_store ON station_items(store_id);
+```
+
+Unique yang di-scope per store:
+```sql
+-- daily_records: UNIQUE(business_date, shift) -> UNIQUE(store_id, business_date, shift)
+CREATE UNIQUE INDEX uq_daily_records_store_date_shift ON daily_records(store_id, business_date, shift);
+```
+
+> Catatan drift: `scripts/init-schema.sql` memuat 8 tabel (tanpa `stores`/
+> `store_id`), sedangkan `scripts/migrate-multi-resto.ts` yang menambahkan
+> `stores` + `store_id`. Skema definitif = `init-schema.sql` + migrasi
+> berurutan. Lihat roadmap: satukan ke `migrations/NNN_*.sql`.
+
+---
+
+## 10. Init SQL
 
 ```sql
 -- Jalankan sekali saat setup database:
@@ -297,7 +396,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at
 
 ---
 
-## 8. Seed Data (Data Real)
+## 11. Seed Data (Data Real)
 
 ### Users
 ```sql

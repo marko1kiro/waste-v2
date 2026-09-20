@@ -64,13 +64,15 @@ const CHART_TOOLTIP_STYLE = {
 
 export default function Dashboard() {
   const { user } = useAuth()
-  if (user?.role === 'admin_store') return <DashboardHistory />
 
+  // Semua hooks WAJIB di atas early return (Rules of Hooks).
+  // Query di-disable untuk admin_store karena komponen ini return lebih awal.
   const [range, setRange] = useState<(typeof RANGE_OPTIONS)[number]>(30)
 
   const { data, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ['dashboard-data'],
     queryFn: () => apiClient.fetch<DashboardData>('/api/dashboard-data'),
+    enabled: user?.role !== 'admin_store',
   })
 
   const filteredDaily = useMemo(() => {
@@ -88,6 +90,8 @@ export default function Dashboard() {
     if (!data?.shiftTotals) return []
     return Object.entries(data.shiftTotals).map(([name, value]) => ({ name, value }))
   }, [data])
+
+  if (user?.role === 'admin_store') return <DashboardHistory />
 
   if (isLoading) {
     return (
@@ -306,6 +310,7 @@ export function DashboardHistory() {
       setEditingId(null)
       setEditForm(null)
       qc.invalidateQueries({ queryKey: ['items', selectedDate] })
+      qc.invalidateQueries({ queryKey: ['dashboard-data'] })
     },
     onError: (err) => toast.error('Waduh gagal update', err instanceof Error ? err.message : 'Error'),
   })
@@ -318,6 +323,7 @@ export function DashboardHistory() {
       setConfirmDeleteId(null)
       qc.invalidateQueries({ queryKey: ['items', selectedDate] })
       qc.invalidateQueries({ queryKey: ['shift-status'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-data'] })
     },
     onError: (err) => toast.error('Waduh gagal hapus', err instanceof Error ? err.message : 'Error'),
   })
@@ -331,6 +337,7 @@ export function DashboardHistory() {
       setAddForm(null)
       qc.invalidateQueries({ queryKey: ['items', selectedDate] })
       qc.invalidateQueries({ queryKey: ['shift-status'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-data'] })
     },
     onError: (err) => toast.error('Waduh gagal tambah', err instanceof Error ? err.message : 'Error'),
   })

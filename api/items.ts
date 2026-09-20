@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { authenticateRequest, getSQL, validateItemPayload, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
+import { authenticateRequest, getSQL, isAllowedUploadUrl, validateItemPayload, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505'
@@ -30,8 +30,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const validated = validateItemPayload(body)
     if (!validated.success) return res.status(400).json({ error: validated.message })
     if (storeId === null) return res.status(400).json({ error: 'store_id wajib' })
+    // H2: paraf URLs must come from our allowlist (generic 400)
+    for (const [field, value] of [['paraf_qc_url', body.paraf_qc_url], ['paraf_manager_url', body.paraf_manager_url]] as Array<[string, unknown]>) {
+      const url = String(value || '')
+      if (url && !isAllowedUploadUrl(url)) {
+        console.warn('[items] Rejected untrusted paraf URL', { field, url: url.slice(0, 160) })
+        return res.status(400).json({ error: 'URL paraf tidak valid.' })
+      }
+    }
+    // H5: store_name always resolved server-side from the stores table — client input ignored
+    const storeRow = await sql`SELECT name FROM stores WHERE id = ${storeId} LIMIT 1`
+    const storeName = storeRow.length ? String(storeRow[0].name) : 'UNKNOWN'
     try {
-      const rows = await sql(`WITH guard AS (SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2 || ':' || $17))), claimed AS (INSERT INTO waste_submission_locks (business_date, shift, station, store_id) SELECT $1::date, $2, $3, $17 FROM guard ON CONFLICT DO NOTHING RETURNING 1) INSERT INTO product_destructions (store_id, business_date, shift, store_name, kategori_induk, nama_produk, kode_produk, jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan, jam_tanggal_pemusnahan, paraf_qc_url, paraf_qc_name, paraf_manager_url, paraf_manager_name, dokumentasi_urls, submitted_by) SELECT $17, $1::date, $2, $4, $3, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, '', $16 FROM claimed RETURNING id, business_date::text AS business_date, shift, kategori_induk, nama_produk, kode_produk, jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan, jam_tanggal_pemusnahan, paraf_qc_name, paraf_manager_name, submitted_by, created_at`, [String(body.business_date), String(body.shift), String(body.kategori_induk), String(body.store_name || ''), String(body.nama_produk).toUpperCase(), String(body.kode_produk || ''), Number(body.jumlah_produk), String(body.unit), String(body.metode_pemusnahan || 'DIBUANG'), String(body.alasan_pemusnahan), String(body.jam_tanggal_pemusnahan || ''), String(body.paraf_qc_url || ''), String(body.paraf_qc_name), String(body.paraf_manager_url || ''), String(body.paraf_manager_name), payload.sub, storeId])
+      const rows = await sql(`WITH guard AS (SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2 || ':' || $17))), claimed AS (INSERT INTO waste_submission_locks (business_date, shift, station, store_id) SELECT $1::date, $2, $3, $17 FROM guard ON CONFLICT DO NOTHING RETURNING 1) INSERT INTO product_destructions (store_id, business_date, shift, store_name, kategori_induk, nama_produk, kode_produk, jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan, jam_tanggal_pemusnahan, paraf_qc_url, paraf_qc_name, paraf_manager_url, paraf_manager_name, dokumentasi_urls, submitted_by) SELECT $17, $1::date, $2, $4, $3, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, '', $16 FROM claimed RETURNING id, business_date::text AS business_date, shift, kategori_induk, nama_produk, kode_produk, jumlah_produk, unit, metode_pemusnahan, alasan_pemusnahan, jam_tanggal_pemusnahan, paraf_qc_name, paraf_manager_name, submitted_by, created_at`, [String(body.business_date), String(body.shift), String(body.kategori_induk), storeName, String(body.nama_produk).toUpperCase(), String(body.kode_produk || ''), Number(body.jumlah_produk), String(body.unit), String(body.metode_pemusnahan || 'DIBUANG'), String(body.alasan_pemusnahan), String(body.jam_tanggal_pemusnahan || ''), String(body.paraf_qc_url || ''), String(body.paraf_qc_name), String(body.paraf_manager_url || ''), String(body.paraf_manager_name), payload.sub, storeId])
       if (!rows.length) return res.status(409).json({ error: 'Data duplikat untuk station, tanggal, dan shift ini.' })
       return res.status(201).json({ success: true, data: rows[0] })
     } catch (err) { return res.status(isUniqueViolation(err) ? 409 : 500).json({ error: isUniqueViolation(err) ? 'Data duplikat untuk station, tanggal, dan shift ini.' : 'Internal server error' }) }

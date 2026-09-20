@@ -182,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     } catch (err) {
       console.error('[list-blob-pdfs] Error:', err)
-      return res.status(500).json({ error: 'Gagal mengambil daftar PDF', details: String(err) })
+      return res.status(500).json({ error: 'Gagal mengambil daftar PDF' })
     }
   }
 

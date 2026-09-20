@@ -14,8 +14,16 @@ import { STATIONS, METHODS } from '@shared/schema'
 import { parsePasteWaste, type PasteIssue } from '@/lib/paste-waste-parser'
 import { hasCatalog, initialWasteStep } from '@/lib/store-features'
 import { canApplyRestore, deleteDraft, filesToPhotos, getDraft, listQueue, photosToFiles, queueSnapshot, retryQueueItem, saveDraft, shouldUseDirectSubmitFallback, syncQueue, type QueueItem } from '@/lib/offline-waste'
-import { TESTER_ITEMS } from '@shared/tester'
 import { STATION_UI } from '@shared/station-ui'
+// TESTER_ITEMS dipindah ke sini sebagai const lokal (dulu di shared/tester.ts).
+// Daftar checklist observasi akhir shift untuk "Tester Mode".
+const TESTER_ITEMS = [
+  { name: 'MIE GACOAN LV. 1', station: 'NOODLE' },
+  { name: 'UDANG KEJU', station: 'DIMSUM' },
+  { name: 'UDANG RAMBUTAN', station: 'DIMSUM' },
+  { name: 'LUMPIA UDANG', station: 'DIMSUM' },
+  { name: 'ALL BIANG BAR', station: 'BAR' },
+] as const
 import type { Station } from '@shared/schema'
 import {
   CheckCircle2,
@@ -426,7 +434,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     }
     let storageUnavailable = false
     {
-      const submission = (station: string, rows: Array<Pick<WasteRow, 'namaProduk' | 'jumlahProduk' | 'kodeProduk' | 'unit' | 'metodePemusnahan' | 'alasanPemusnahan'>>) => ({ payload: { tanggal: businessDate, kategoriInduk: station, shift, storeName: 'BEKASI KP. BULU', productList: JSON.stringify(rows.map((row) => row.namaProduk.toUpperCase())), jumlahProdukList: JSON.stringify(rows.map((row) => row.jumlahProduk)), kodeProdukList: JSON.stringify(rows.map((row) => row.kodeProduk)), unitList: JSON.stringify(rows.map((row) => row.unit)), metodePemusnahanList: JSON.stringify(rows.map((row) => row.metodePemusnahan)), alasanPemusnahanList: JSON.stringify(rows.map((row) => row.alasanPemusnahan)), jamTanggalPemusnahanList: JSON.stringify(rows.map(() => pasteMode ? parsedPaste.destructionTime || '' : formatTimeWIB())), parafQCName: qcName, parafQCUrl: selectedQC?.signature_url || '', parafManagerName: managerName, parafManagerUrl: selectedManager?.signature_url || '' }, photos: filesToPhotos(filesByStation[station] || []), uploadedUrls: [] })
+      const submission = (station: string, rows: Array<Pick<WasteRow, 'namaProduk' | 'jumlahProduk' | 'kodeProduk' | 'unit' | 'metodePemusnahan' | 'alasanPemusnahan'>>) => ({ payload: { tanggal: businessDate, kategoriInduk: station, shift, storeName: store?.name ?? '', productList: JSON.stringify(rows.map((row) => row.namaProduk.toUpperCase())), jumlahProdukList: JSON.stringify(rows.map((row) => row.jumlahProduk)), kodeProdukList: JSON.stringify(rows.map((row) => row.kodeProduk)), unitList: JSON.stringify(rows.map((row) => row.unit)), metodePemusnahanList: JSON.stringify(rows.map((row) => row.metodePemusnahan)), alasanPemusnahanList: JSON.stringify(rows.map((row) => row.alasanPemusnahan)), jamTanggalPemusnahanList: JSON.stringify(rows.map(() => pasteMode ? parsedPaste.destructionTime || '' : formatTimeWIB())), parafQCName: qcName, parafQCUrl: selectedQC?.signature_url || '', parafManagerName: managerName, parafManagerUrl: selectedManager?.signature_url || '' }, photos: filesToPhotos(filesByStation[station] || []), uploadedUrls: [] })
       const submissions = selectedStations.map((station) => submission(station, rowsByStation[station].filter((row) => row.namaProduk.trim() !== '')))
       if (testerMode && testerIssueCount) submissions.push(submission('BAR', TESTER_ITEMS.filter((item) => testerChecks[item.name] === false).map((item) => ({ namaProduk: item.name, kodeProduk: '', jumlahProduk: 1, unit: 'PCS', metodePemusnahan: 'DIBUANG', alasanPemusnahan: 'TESTER' }))))
       try {
@@ -499,7 +507,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
               tanggal: businessDate,
               kategoriInduk: station,
               shift,
-              storeName: 'BEKASI KP. BULU',
+              storeName: store?.name ?? '',
               productList: JSON.stringify(validRows.map((r) => r.namaProduk.toUpperCase())),
               jumlahProdukList: JSON.stringify(validRows.map((r) => r.jumlahProduk)),
               kodeProdukList: JSON.stringify(validRows.map((r) => r.kodeProduk)),
@@ -536,7 +544,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             tanggal: businessDate,
             kategoriInduk: 'BAR',
             shift,
-            storeName: 'BEKASI KP. BULU',
+            storeName: store?.name ?? '',
             productList: JSON.stringify(payloadRows.map((r) => r.namaProduk.toUpperCase())),
             jumlahProdukList: JSON.stringify(payloadRows.map((r) => r.jumlahProduk)),
             kodeProdukList: JSON.stringify(payloadRows.map((r) => r.kodeProduk)),
@@ -597,7 +605,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     <div className="mx-auto max-w-4xl py-2" onClickCapture={markDirty} onChangeCapture={markDirty}>
       {progress && <ProgressOverlay progress={progress} />}
       {persistenceStatus && <div role="status" aria-live="polite" className="mb-3 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"><span>{persistenceStatus}</span>{persistenceStatus === 'Draft dipulihkan.' && <button type="button" onClick={() => setPersistenceStatus('')} aria-label="Tutup status draft">Tutup</button>}</div>}
-      {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><p className="font-semibold">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => void retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems)} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Login</button>}</div>)}</section>}
+      {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><p className="font-semibold">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => { retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems).catch((err) => toast.error('Gagal coba lagi', err instanceof Error ? err.message : 'Unknown error')) }} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Login</button>}</div>)}</section>}
 
       <div className="mb-5 flex items-center justify-between">
         <div>

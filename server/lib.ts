@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { neon } from '@neondatabase/serverless'
 import { put } from '@vercel/blob'
-import { r2Upload, r2Delete, isR2Url, isVercelBlobUrl, getR2KeyFromUrl } from './r2.js'
+import { r2Upload, r2Delete, isR2Url, isVercelBlobUrl, getR2KeyFromUrl, getR2ProxyRef, resolveR2Key } from './r2.js'
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 
 // ─── DB ────────────────────────────────────────────────
@@ -173,7 +173,7 @@ export function verifyToken(token: string): JWTPayload | null {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as JWTPayload
     const now = Math.floor(Date.now() / 1000)
 
-    if (payload.exp < now) return null
+    if (typeof payload.exp !== 'number' || payload.exp < now) return null
 
     return payload
   } catch {
@@ -313,9 +313,11 @@ export async function uploadToBlob(
   buffer: Buffer,
   contentType: string,
 ): Promise<string> {
-  // New uploads go to R2 if configured, fallback to Vercel Blob
+  // New uploads go to R2 if configured, fallback to Vercel Blob.
+  // H3: R2 uploads are private-by-default — return a proxy ref, never a public URL.
   if (process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET) {
-    return r2Upload(filename, buffer, contentType)
+    const key = await r2Upload(filename, buffer, contentType)
+    return getR2ProxyRef(key)
   }
   const blob = await put(filename, buffer, {
     access: 'private',
@@ -329,13 +331,22 @@ export function getProxyUrl(blobUrl: string): string {
 }
 
 /** Detect if URL is from R2 (new) or Vercel Blob (legacy). */
-export { isR2Url, isVercelBlobUrl, getR2KeyFromUrl }
+export { isR2Url, isVercelBlobUrl, getR2KeyFromUrl, resolveR2Key, getR2ProxyRef }
 
-/** Delete a blob — routes to R2 or Vercel Blob based on URL. */
+/** Re-exported for submit-time URL allowlist checks (H2). */
+export { isAllowedUploadUrl } from './r2.js'
+
+/** Re-exported for credentialed private R2 fetches (H3). */
+export { r2GetObject } from './r2.js'
+
+/** Delete a blob — routes to R2 or Vercel Blob based on URL (or R2 key ref). */
 export async function deleteBlob(url: string): Promise<void> {
-  if (isR2Url(url)) {
-    await r2Delete(getR2KeyFromUrl(url))
-  } else if (isVercelBlobUrl(url)) {
+  const r2Key = resolveR2Key(url)
+  if (r2Key) {
+    await r2Delete(r2Key)
+    return
+  }
+  if (isVercelBlobUrl(url)) {
     const { del } = await import('@vercel/blob')
     await del(url)
   }
@@ -417,7 +428,7 @@ export async function fetchDayGrouped(date: string, storeId?: number | null): Pr
     }
   }
 
-  let storeName = 'BEKASI KP. BULU'
+  let storeName = 'UNKNOWN'
   if (storeId != null) {
     const storeRow = await sql`SELECT name FROM stores WHERE id = ${storeId} LIMIT 1`
     if (storeRow.length) storeName = String(storeRow[0].name)

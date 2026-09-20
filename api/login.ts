@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { z } from 'zod'
+import { randomBytes, scryptSync } from 'crypto'
 import { getSQL, verifyPassword, createToken, logActivity, getClientIP } from '../server/lib.js'
 
 const loginSchema = z.object({
@@ -25,6 +26,47 @@ function checkRateLimit(key: string, options: { max: number; windowSeconds: numb
 
   cached.count++
   return { allowed: true, retryAfterSeconds: 0 }
+}
+
+// ─── Per-username attempt counter + progressive delay (M1) ────
+// In-memory per cold-start instance, seperti IP limiter di atas.
+// Roadmap: pindahkan ke distributed store (Upstash Redis / Vercel KV).
+const userAttemptCache = new Map<string, { count: number; resetAt: number }>()
+const USER_ATTEMPT_WINDOW_MS = 15 * 60 * 1000
+const USER_ATTEMPT_SOFT_LIMIT = 5
+const USER_ATTEMPT_HARD_LIMIT = 30
+const USER_ATTEMPT_MAX_DELAY_MS = 10_000
+
+function noteFailedUserAttempt(username: string): { delayMs: number; blocked: boolean } {
+  const key = username.toLowerCase()
+  const now = Date.now()
+  const cached = userAttemptCache.get(key)
+  if (!cached || now >= cached.resetAt) {
+    userAttemptCache.set(key, { count: 1, resetAt: now + USER_ATTEMPT_WINDOW_MS })
+    return { delayMs: 0, blocked: false }
+  }
+  cached.count += 1
+  if (cached.count > USER_ATTEMPT_HARD_LIMIT) return { delayMs: 0, blocked: true }
+  const extra = cached.count - USER_ATTEMPT_SOFT_LIMIT
+  return { delayMs: extra > 0 ? Math.min(extra * 1000, USER_ATTEMPT_MAX_DELAY_MS) : 0, blocked: false }
+}
+
+function clearUserAttempts(username: string): void {
+  userAttemptCache.delete(username.toLowerCase())
+}
+
+function maskTimingWithDummyScrypt(): void {
+  // L2: jalankan scrypt dummy agar timing tidak membocorkan keberadaan username
+  scryptSync(randomBytes(16), randomBytes(16), 64)
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function applyUserThrottle(username: string): Promise<{ blocked: boolean }> {
+  const attempt = noteFailedUserAttempt(username)
+  if (attempt.blocked) return { blocked: true }
+  if (attempt.delayMs > 0) await sleep(attempt.delayMs)
+  return { blocked: false }
 }
 
 // ─── Handler ───────────────────────────────────────────
@@ -63,6 +105,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `
 
     if (users.length === 0) {
+      maskTimingWithDummyScrypt() // L2: samarkan timing user-tidak-ditemukan
+      const throttle = await applyUserThrottle(username) // M1
+      if (throttle.blocked) {
+        return res.status(429).json({ error: 'Terlalu banyak percobaan untuk username ini. Coba lagi nanti.' })
+      }
       await logActivity({
         action: 'login_failed',
         category: 'auth',
@@ -78,11 +125,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const user = users[0]
 
     if (user.status !== 'active') {
+      const throttle = await applyUserThrottle(username) // M1
+      if (throttle.blocked) {
+        return res.status(429).json({ error: 'Terlalu banyak percobaan untuk username ini. Coba lagi nanti.' })
+      }
       return res.status(401).json({ error: 'Akun tidak aktif. Hubungi admin.' })
     }
 
     const isValid = verifyPassword(password, user.password_hash)
     if (!isValid) {
+      const throttle = await applyUserThrottle(username) // M1
+      if (throttle.blocked) {
+        return res.status(429).json({ error: 'Terlalu banyak percobaan untuk username ini. Coba lagi nanti.' })
+      }
       await logActivity({
         action: 'login_failed',
         category: 'auth',
@@ -97,6 +152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const token = createToken(user.username, user.role, user.display_name, user.store_id === null ? null : Number(user.store_id))
+    clearUserAttempts(username) // M1: reset counter per-username saat login sukses
 
     await logActivity({
       action: 'login_success',
