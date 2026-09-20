@@ -114,7 +114,7 @@ Checklist uji restore:
 
 ## 5. Yang TIDAK di-backup oleh runbook ini
 
-- **Foto dokumentasi** → sudah di Cloudflare R2 / Vercel Blob (replikasi bawaan provider).
+- **Foto dokumentasi** → sudah di Cloudflare R2 (replikasi bawaan provider).
 - **PDF Berita Acara** → sudah di-backup otomatis ke Google Drive + R2
   (lihat `docs/09-GOOGLE-DRIVE-BACKUP.md`).
 - Runbook ini khusus **database relasional** (Neon PostgreSQL).

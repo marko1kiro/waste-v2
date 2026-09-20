@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { neon } from '@neondatabase/serverless'
-import { put } from '@vercel/blob'
-import { r2Upload, r2Delete, isR2Url, isVercelBlobUrl, getR2KeyFromUrl, getR2ProxyRef, resolveR2Key } from './r2.js'
+import { r2Upload, r2Delete, isR2Url, getR2KeyFromUrl, getR2ProxyRef, resolveR2Key } from './r2.js'
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 
 // ─── DB ────────────────────────────────────────────────
@@ -313,25 +312,21 @@ export async function uploadToBlob(
   buffer: Buffer,
   contentType: string,
 ): Promise<string> {
-  // New uploads go to R2 if configured, fallback to Vercel Blob.
+  // R2 is the only storage backend — fail loudly if it is not configured.
   // H3: R2 uploads are private-by-default — return a proxy ref, never a public URL.
-  if (process.env.R2_ACCOUNT_ID && process.env.R2_BUCKET) {
-    const key = await r2Upload(filename, buffer, contentType)
-    return getR2ProxyRef(key)
+  if (!process.env.R2_ACCOUNT_ID || !process.env.R2_BUCKET) {
+    throw new Error('R2 storage is not configured (R2_ACCOUNT_ID/R2_BUCKET missing)')
   }
-  const blob = await put(filename, buffer, {
-    access: 'private',
-    contentType,
-  })
-  return blob.url
+  const key = await r2Upload(filename, buffer, contentType)
+  return getR2ProxyRef(key)
 }
 
 export function getProxyUrl(blobUrl: string): string {
   return `/api/signatures?blobUrl=${encodeURIComponent(blobUrl)}`
 }
 
-/** Detect if URL is from R2 (new) or Vercel Blob (legacy). */
-export { isR2Url, isVercelBlobUrl, getR2KeyFromUrl, resolveR2Key, getR2ProxyRef }
+/** Detect if URL is from R2 (new) or a private R2 key ref. */
+export { isR2Url, getR2KeyFromUrl, resolveR2Key, getR2ProxyRef }
 
 /** Re-exported for submit-time URL allowlist checks (H2). */
 export { isAllowedUploadUrl } from './r2.js'
@@ -339,17 +334,14 @@ export { isAllowedUploadUrl } from './r2.js'
 /** Re-exported for credentialed private R2 fetches (H3). */
 export { r2GetObject } from './r2.js'
 
-/** Delete a blob — routes to R2 or Vercel Blob based on URL (or R2 key ref). */
+/** Delete a file — R2 only. Non-R2 refs are ignored (legacy backends removed). */
 export async function deleteBlob(url: string): Promise<void> {
   const r2Key = resolveR2Key(url)
   if (r2Key) {
     await r2Delete(r2Key)
     return
   }
-  if (isVercelBlobUrl(url)) {
-    const { del } = await import('@vercel/blob')
-    await del(url)
-  }
+  console.warn('[deleteBlob] Non-R2 ref skipped, no storage backend for it')
 }
 
 // ─── Shared SQL / Data Helpers ─────────────────────────

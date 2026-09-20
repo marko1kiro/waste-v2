@@ -1,6 +1,6 @@
 // Cloudflare R2 Object Storage — S3-compatible API via aws4fetch.
-// Handles upload and delete for new photo uploads.
-// Old Vercel Blob files are untouched (backward compatible).
+// Handles upload and delete for photo uploads and PDF backups.
+// R2 is the only storage backend (private-by-default, served via /api/signatures).
 
 import { AwsClient } from 'aws4fetch'
 
@@ -33,7 +33,7 @@ export function isR2Url(url: string): boolean {
 
 /**
  * Submit-time allowlist for documentation/signature URLs (H2 SSRF mitigation).
- * Accepts only: our own proxy refs, exact R2 public host, or Vercel Blob hosts.
+ * Accepts only: our own proxy refs or the exact R2 public host.
  */
 export function isAllowedUploadUrl(url: string): boolean {
   if (typeof url !== 'string' || !url) return false
@@ -46,8 +46,7 @@ export function isAllowedUploadUrl(url: string): boolean {
   }
   if (parsed.protocol !== 'https:') return false
   const host = parsed.hostname.toLowerCase()
-  if (R2_PUBLIC_DOMAIN && host === R2_PUBLIC_DOMAIN.toLowerCase()) return true
-  return host === 'blob.vercel-storage.com' || host.endsWith('.blob.vercel-storage.com')
+  return !!R2_PUBLIC_DOMAIN && host === R2_PUBLIC_DOMAIN.toLowerCase()
 }
 
 /** Check if a blob reference is an R2 object key (new private proxy refs), not a URL. */
@@ -74,11 +73,6 @@ export function resolveR2Key(ref: string): string {
 /** Private proxy reference for an R2 object — what new uploads return (H3). */
 export function getR2ProxyRef(key: string): string {
   return `/api/signatures?blobUrl=${encodeURIComponent(key)}`
-}
-
-/** Check if a URL is a legacy Vercel Blob URL. */
-export function isVercelBlobUrl(url: string): boolean {
-  return url.includes('blob.vercel-storage.com')
 }
 
 /** Extract the R2 key from a public URL. */

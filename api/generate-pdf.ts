@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Readable } from 'stream'
-import { get } from '@vercel/blob'
 import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
 import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from '../server/google-drive.js'
 import { findR2Pdf, downloadR2Pdf, uploadR2Pdf, resolveR2Key, r2GetObject } from '../server/r2.js'
@@ -57,12 +56,8 @@ async function loadPrivateAsset(url: string): Promise<{ asset: string; bytes: nu
     if (!contentType) throw new Error('Unsupported PDF image type')
     bytes = Buffer.from(await response.arrayBuffer())
   } else {
-    // Legacy Vercel Blob — use @vercel/blob get()
-    const result = await get(privateUrl, { access: 'private' })
-    if (!result || result.statusCode !== 200 || !result.stream) throw new Error('Private asset unavailable')
-    contentType = supportedImageType(result.blob.contentType, privateUrl)
-    if (!contentType) throw new Error('Unsupported PDF image type')
-    bytes = Buffer.from(await new Response(result.stream).arrayBuffer())
+    // Vercel Blob backend has been removed — legacy assets are unsupported.
+    throw new Error('Legacy storage asset no longer supported')
   }
 
   if (!bytes.length || bytes.byteLength > MAX_ASSET_BYTES) throw new Error('PDF asset byte limit exceeded')

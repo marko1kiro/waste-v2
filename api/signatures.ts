@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { get } from '@vercel/blob'
 import { getSQL, authenticateRequest, verifyBlobAccessToken, resolveStoreContext, getRequestedStoreId, resolveR2Key, r2GetObject, type AuthPayload } from '../server/lib.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -69,24 +68,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).send(buffer)
       }
 
-      // Legacy Vercel Blob — use @vercel/blob get()
-      const result = await get(blobUrl, { access: 'private' })
-      if (!result || result.statusCode !== 200 || !result.stream) {
-        return res.status(404).json({ error: 'File not found' })
-      }
-      const contentType = result.blob.contentType?.split(';', 1)[0].toLowerCase()
-      if (!contentType || (!contentType.startsWith('image/') && contentType !== 'application/pdf')) {
-        return res.status(415).json({ error: 'Unsupported file type' })
-      }
-      const streamResponse = new Response(result.stream)
-      const arrayBuffer = await streamResponse.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-      res.setHeader('Content-Type', contentType)
-      res.setHeader('X-Content-Type-Options', 'nosniff')
-      res.setHeader('Cache-Control', 'private, max-age=60')
-      return res.status(200).send(buffer)
+      // Vercel Blob backend has been removed — legacy blob URLs are gone.
+      return res.status(410).json({ error: 'File no longer available' })
     } catch (err) {
-      console.error('[signatures] Blob error:', err)
+      console.error('[signatures] File error:', err)
       return res.status(500).json({ error: 'Internal server error' })
     }
   }
