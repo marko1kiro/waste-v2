@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { list } from '@vercel/blob'
-import { getSQL, authenticateRequest, shiftStatusQuerySchema, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
+import { getSQL, authenticateRequest, shiftStatusQuerySchema, resolveStoreContext, getRequestedStoreId, createBlobAccessToken } from '../server/lib.js'
 import { listR2Pdfs } from '../server/r2.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -132,6 +132,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // 1. Fetch from Cloudflare R2
       const r2Pdfs = await listR2Pdfs(storeCode, month)
+      // Serve R2 PDF downloads through the authenticated /api/signatures proxy
+      // with short-lived signed tokens instead of direct public R2 URLs, so the
+      // bucket can be made private without breaking the archive download page.
+      // The proxy resolves the R2 key server-side (resolveR2Key -> r2GetObject);
+      // the public URL here is only an identifier, never fetched directly.
+      const proxiedR2Pdfs = r2Pdfs.map((pdf) => {
+        const token = createBlobAccessToken(pdf.url, 60 * 60)
+        const proxyUrl = `/api/signatures?blobUrl=${encodeURIComponent(pdf.url)}&token=${encodeURIComponent(token)}`
+        return { ...pdf, url: proxyUrl, downloadUrl: proxyUrl }
+      })
 
       // 2. Fetch from legacy Vercel Blob (fallback for old CKRBUL records)
       let blobPdfs: typeof r2Pdfs = []
@@ -165,7 +175,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 3. Merge without filename duplicates (R2 takes precedence)
       const seen = new Set<string>()
       const merged = []
-      for (const pdf of [...r2Pdfs, ...blobPdfs]) {
+      for (const pdf of [...proxiedR2Pdfs, ...blobPdfs]) {
         if (!seen.has(pdf.filename)) {
           seen.add(pdf.filename)
           merged.push(pdf)
