@@ -19,18 +19,11 @@ async function loadHandler(route: string) {
   const handlerMap: Record<string, string> = {
     '/api/login': '../api/login.ts',
     '/api/submit-waste': '../api/submit-waste.ts',
-    '/api/dashboard-data': '../api/dashboard-data.ts',
-    '/api/get-day-data': '../api/get-day-data.ts',
-    '/api/shift-status': '../api/shift-status.ts',
+    '/api/upload-file': '../api/upload-file.ts',
     '/api/signatures': '../api/signatures.ts',
     '/api/generate-pdf': '../api/generate-pdf.ts',
-    '/api/station-items': '../api/station-items.ts',
-    '/api/admin-personnel': '../api/admin-personnel.ts',
-    '/api/admin-station-items': '../api/admin-station-items.ts',
-    '/api/admin-users': '../api/admin-users.ts',
-    '/api/upload-file': '../api/upload-file.ts',
-    '/api/tenant-config': '../api/tenant-config.ts',
-    '/api/list-blob-pdfs': '../api/list-blob-pdfs.ts',
+    '/api/dashboard-data': '../api/dashboard-data.ts',
+    '/api/get-day-data': '../api/get-day-data.ts',
   }
 
   const handlerPath = handlerMap[route]

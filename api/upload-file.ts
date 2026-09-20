@@ -1,6 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { authenticateRequest, uploadToBlob, getProxyUrl, getSQL, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
 
+// H1: strict upload validation — allowlisted image types, 10 MB cap, magic bytes.
+const ALLOWED_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+function detectImageKind(buffer: Buffer): 'jpeg' | 'png' | 'webp' | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpeg'
+  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'png'
+  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp'
+  return null
+}
+
+function claimedKind(contentType: string): 'jpeg' | 'png' | 'webp' | null {
+  if (contentType === 'image/jpeg') return 'jpeg'
+  if (contentType === 'image/png') return 'png'
+  if (contentType === 'image/webp') return 'webp'
+  return null
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const payload = await authenticateRequest(req, true)
   if (!payload) return res.status(401).json({ error: 'Unauthorized' })
@@ -43,13 +61,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       uniqueName = `${storeCode}/${yearMonth}/${safeFolder}/${timestamp}-${cleanFilename}`
     }
 
+    // H1: reject SVG outright + allowlist content type (generic errors to client)
+    const claimedType = String(contentType).split(';', 1)[0].trim().toLowerCase()
+    if (claimedType.includes('svg')) {
+      console.warn('[upload-file] Rejected SVG upload attempt')
+      return res.status(400).json({ error: 'File tidak valid' })
+    }
+    if (!ALLOWED_UPLOAD_TYPES.has(claimedType)) {
+      console.warn('[upload-file] Rejected disallowed content type')
+      return res.status(400).json({ error: 'File tidak valid' })
+    }
+
     const cleanedBase64 = String(base64).replace(/^data:.*;base64,/, '')
+    // H1: enforce 10 MB BEFORE decoding — base64 inflates payloads ~4/3
+    const maxBase64Length = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4
+    if (cleanedBase64.length > maxBase64Length) {
+      console.warn('[upload-file] Rejected oversized upload', { base64Length: cleanedBase64.length })
+      return res.status(413).json({ error: 'Ukuran file melebihi batas' })
+    }
     const buffer = Buffer.from(cleanedBase64, 'base64')
+    if (buffer.length === 0 || buffer.length > MAX_UPLOAD_BYTES) {
+      console.warn('[upload-file] Rejected upload with invalid decoded size', { bytes: buffer.length })
+      return res.status(413).json({ error: 'Ukuran file melebihi batas' })
+    }
 
-    const blobUrl = await uploadToBlob(uniqueName, buffer, String(contentType))
-    const proxyUrl = getProxyUrl(blobUrl)
+    // H1: magic bytes must match the claimed content type
+    const detected = detectImageKind(buffer)
+    if (detected === null || detected !== claimedKind(claimedType)) {
+      console.warn('[upload-file] Magic byte mismatch', { claimedType, detected })
+      return res.status(400).json({ error: 'File tidak valid' })
+    }
 
-    return res.status(200).json({ success: true, blobUrl, proxyUrl })
+    const blobRef = await uploadToBlob(uniqueName, buffer, claimedType)
+    // R2 uploads already return a private proxy ref; wrap legacy blob URLs.
+    const proxyUrl = blobRef.startsWith('/api/signatures?') ? blobRef : getProxyUrl(blobRef)
+
+    return res.status(200).json({ success: true, blobUrl: proxyUrl, proxyUrl })
   } catch (err) {
     console.error('[upload-file] Error:', err)
     return res.status(500).json({ error: 'Upload gagal' })

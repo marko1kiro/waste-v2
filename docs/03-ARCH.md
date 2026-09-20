@@ -125,78 +125,57 @@
 ## 4. Project Structure
 
 ```
-waste/
+waste-v2/
 ├── index.html                  # Entry point
 ├── package.json                # Dependencies
 ├── vite.config.ts              # Vite config
-├── vercel.json                 # Vercel deploy config
+├── vercel.json                 # Vercel deploy config (CSP header)
 ├── tailwind.config.ts          # Tailwind config
-├── .env.example                # Environment template
+├── components.json             # shadcn/ui config
+├── .env.example                # Environment template (placeholder saja)
 │
-├── api/                        # ▲ Serverless Functions
-│   ├── _lib/                   # Shared backend libraries
-│   │   ├── auth.ts             # JWT + scrypt auth
-│   │   ├── db.ts               # Database queries (Neon)
-│   │   ├── blob.ts             # Vercel Blob upload helper
-│   │   ├── validators.ts       # Zod schemas
-│   │   ├── rate-limit.ts       # Simple rate limiter
-│   │   └── activity-logger.ts  # Activity logging
-│   │
-│   ├── auth/
-│   │   └── login.ts            # POST /api/auth/login
-│   │
-│   ├── auto-submit.ts          # POST /api/auto-submit
+├── api/                        # ▲ Vercel Serverless Functions
+│   ├── admin/
+│   │   └── [action].ts         # Router aksi admin: personnel, users, station-items, api-keys, tenant-config, …
+│   ├── login.ts                # POST /api/login
+│   ├── submit-waste.ts         # POST /api/submit-waste
+│   ├── upload-file.ts          # POST /api/upload-file
+│   ├── signatures.ts           # GET /api/signatures + blob proxy
+│   ├── generate-pdf.ts         # GET /api/generate-pdf
 │   ├── dashboard-data.ts       # GET /api/dashboard-data
 │   ├── get-day-data.ts         # GET /api/get-day-data
-│   ├── signatures.ts           # GET /api/signatures + blob proxy
-│   ├── proxy-image.ts          # GET /api/proxy-image
-│   └── activity-logger.ts  # Activity logging
+│   ├── get.ts                  # GET /api/get?action=shift-status|station-items|list-blob-pdfs
+│   └── items.ts                # Endpoint item station
 │
-├── shared/
+├── server/                     # Shared backend libs
+│   ├── lib.ts                  # JWT, scrypt, store context, validators, upload blob
+│   ├── r2.ts                   # Cloudflare R2 helpers
+│   ├── google-drive.ts         # Backup PDF akun legacy (OAuth refresh token)
+│   └── google-drive-neutral.ts # Backup PDF service account (folder per-resto)
+│
+├── shared/                     # Dipakai frontend + backend
 │   ├── schema.ts               # Shared Zod schemas
-│   └── timezone.ts             # WIB timezone utilities
+│   ├── timezone.ts             # WIB timezone utilities
+│   ├── pdf-renderer.ts         # Render PDF Berita Acara (server-side)
+│   ├── pdf-signature-resolver.ts
+│   ├── station-ui.ts
+│   └── tester.ts
 │
 ├── src/                        # ⚛️ React Frontend
 │   ├── main.tsx                # Entry point
-│   ├── App.tsx                 # Root + router
+│   ├── App.tsx                 # Root + router (Wouter)
 │   ├── index.css               # Global styles
-│   │
-│   ├── pages/
-│   │   ├── waste-mode.tsx      # Home — mode selection
-│   │   ├── auto-waste.tsx      # Manual + auto waste form
-│   │   ├── dashboard.tsx       # Dashboard & charts
-│   │   ├── profile.tsx         # User profile
-│   │   ├── pdf-download.tsx    # PDF export
-│   │   └── not-found.tsx       # 404
-│   │
 │   ├── components/ui/          # shadcn/ui + custom components
-│   │   ├── login-form.tsx      # Login form
-│   │   ├── multi-file-upload.tsx # File upload zone
-│   │   └── ...                 # Other Radix components
-│   │
-│   ├── hooks/
-│   │   ├── useAuth.ts          # Auth hook (session mgmt)
-│   │   └── use-toast.ts        # Toast notifications
-│   │
-│   ├── lib/
-│   │   ├── api-client.ts       # API client with auth
-│   │   ├── queryClient.ts      # React Query client
-│   │   ├── blob-upload.ts      # Client-side Blob upload
-│   │   └── utils.ts            # Utility functions
-│   │
-│   └── contexts/
-│       └── AuthContext.tsx      # Auth React context
+│   ├── contexts/               # AuthContext, ThemeContext
+│   ├── hooks/                  # use-toast
+│   ├── lib/                    # api-client, offline-waste, photo-compression, …
+│   └── pages/                  # waste-mode, auto-waste, dashboard, admin-*, pdf-download, …
 │
-├── public/
-│   ├── manifest.json           # PWA manifest
-│   ├── sw.js                   # Service worker
-│   └── icons/                  # PWA icons
+├── public/                     # Static assets
 │
-└── docs/                       # 📋 Documentation
-    ├── 01-PRD.md               # Product requirements
-    ├── 02-DATA.md              # Station & item catalog
-    ├── 03-ARCH.md              # Architecture
-    └── ...
+├── scripts/                    # Utilitas ops/dev (lihat scripts/README.md)
+│
+└── docs/                       # Dokumentasi
 ```
 
 ---
@@ -205,7 +184,7 @@ waste/
 
 | Area | Convention | Example |
 |------|-----------|---------|
-| API files | `kebab-case.ts` | `auto-submit.ts` |
+| API files | `kebab-case.ts` | `submit-waste.ts` |
 | Pages | `kebab-case.tsx` | `auto-waste.tsx` |
 | Components | `kebab-case.tsx` | `multi-file-upload.tsx` |
 | Hooks | `useXxx.ts` | `useAuth.ts` |
@@ -213,7 +192,7 @@ waste/
 | Types | PascalCase | `StationDraftRow` |
 | Functions | camelCase | `getBusinessDateWIB()` |
 | DB columns | snake_case | `kategori_induk` |
-| API routes | `/api/kebab-case` | `/api/auto-submit` |
+| API routes | `/api/kebab-case` | `/api/submit-waste` |
 | localStorage keys | `waste_app_xxx` | `waste_app_token` |
 
 ---

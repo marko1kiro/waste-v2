@@ -94,6 +94,11 @@ export default function App() {
   const [location, navigate] = useLocation()
   const manualBlocked = !canManual(store)
 
+  // CATATAN KEAMANAN (L5): pengalihan berbasis role di bawah ini UI-only
+  // (UX semata; role dari localStorage bisa di-spoof). Otorisasi sebenarnya
+  // ditegakkan server-side di setiap endpoint API (server/lib.ts:
+  // resolveStoreContext), jadi mem-bypass navigasi ini tidak memberi akses
+  // data yang tidak berhak.
   useEffect(() => {
     if (!isAuthenticated || !user) return
 

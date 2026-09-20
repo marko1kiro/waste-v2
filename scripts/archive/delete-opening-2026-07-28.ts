@@ -1,3 +1,9 @@
+/**
+ * ARCHIVED (one-off, sudah dieksekusi 2026-07-28).
+ * Jangan dijalankan ulang tanpa meninjau ulang tanggal/shift yang dihapus.
+ * Script ini menghapus data OPENING 2026-07-28 dari 3 tabel.
+ * Disimpan di scripts/archive/ untuk referensi historis.
+ */
 import 'dotenv/config'
 import { neon } from '@neondatabase/serverless'
 
