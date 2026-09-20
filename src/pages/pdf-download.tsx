@@ -157,6 +157,13 @@ export default function PdfDownload() {
   }
 
   async function fetchPdfBlob(url: string): Promise<Blob> {
+    // Already-proxied URLs (e.g. signed R2 archive links from list-blob-pdfs)
+    // are fetched as-is — the token in the URL carries the authorization.
+    if (url.startsWith('/api/signatures')) {
+      const response = await fetchPdfResponse(url)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return response.blob()
+    }
     const isR2 = url.includes('images.gacoanku.my.id') || (!url.includes('blob.vercel-storage.com') && url.startsWith('https://'))
     const fetchUrl = isR2 ? url : `/api/signatures?blobUrl=${encodeURIComponent(url)}`
     const headers: Record<string, string> = isR2 ? {} : { Authorization: `Bearer ${apiClient.getToken() || ''}` }
