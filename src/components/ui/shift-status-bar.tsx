@@ -26,7 +26,6 @@ export default function ShiftStatusBar() {
   const storeCode = tenantData?.data?.store_code || ''
   const storeName = tenantData?.data?.store_name || ''
   const storeLabel = storeCode && storeName ? `${storeCode} - ${storeName}` : storeName || storeCode || ''
-  const midnightDone = data?.shifts?.MIDNIGHT?.done === true
 
   return (
     <div className="anim-enter mb-4 rounded-xl border border-border bg-surface px-3 py-2 shadow-theme-xs">
@@ -63,11 +62,6 @@ export default function ShiftStatusBar() {
         </div>
       </div>
 
-      {!midnightDone && (
-        <p className="mt-1.5 border-t border-border/60 pt-1.5 text-center text-[10px] font-medium text-warning-600 dark:text-warning-400">
-          PDF baru bisa dibuat kalo Midnight udah di-submit ya!
-        </p>
-      )}
     </div>
   )
 }
