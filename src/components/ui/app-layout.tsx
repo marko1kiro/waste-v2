@@ -4,6 +4,7 @@ import DesktopSidebar from './desktop-sidebar'
 import MobileBottomNav from './mobile-bottom-nav'
 import ShiftStatusBar from './shift-status-bar'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSidebarCollapsed } from '@/hooks/use-sidebar-collapsed'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -12,6 +13,7 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   const { user } = useAuth()
   const [location] = useLocation()
+  const { collapsed } = useSidebarCollapsed()
   const isSuperAdmin = user?.role === 'super_admin'
   const showShiftBar = !isSuperAdmin && ['/', '/manual-waste', '/auto-waste', '/paste-waste', '/pdf'].includes(location)
 
@@ -19,7 +21,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-dvh">
       <DesktopSidebar />
 
-      <main className="lg:ml-[88px] xl:ml-[264px]">
+      <main className={`transition-[margin] duration-300 ease-out ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[264px]'}`}>
         {showShiftBar && (
           <div className="px-4 pt-4">
             <ShiftStatusBar />
