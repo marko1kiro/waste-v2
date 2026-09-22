@@ -162,7 +162,7 @@ export function renderDailyPdf(input: DailyPdfInput): Uint8Array {
     }
     return { shift, stations: [...stations.entries()].filter(([, urls]) => urls.length) }
   }).filter(({ stations }) => stations.length)
-  if (documentationByShift.length || input.checklistUrl) {
+  if (documentationByShift.length) {
     // H2: only emit https: links into the PDF — drop javascript:, data:, etc.
     const sanitizeLinkTarget = (raw: string | undefined): string | null => {
       if (!raw) return null
@@ -213,15 +213,6 @@ export function renderDailyPdf(input: DailyPdfInput): Uint8Array {
         y += 2
       })
     })
-    doc.setTextColor(0, 0, 0)
-    if (input.checklistUrl) {
-      const target = absoluteUrl(input.checklistUrl)
-      if (target) {
-        doc.setTextColor(0, 102, 204)
-        doc.textWithLink('QC Checklist', margin, 198, { url: target })
-        doc.line(margin, 198.5, margin + doc.getTextWidth('QC Checklist'), 198.5)
-      }
-    }
   }
   return new Uint8Array(doc.output('arraybuffer'))
 }
