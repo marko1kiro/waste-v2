@@ -6,19 +6,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // TailAdmin brand scale (#465fff core)
-        'brand-25': '#f2f7ff',
-        'brand-50': '#ecf3ff',
-        'brand-100': '#dde9ff',
-        'brand-200': '#c2d6ff',
-        'brand-300': '#9cb9ff',
-        'brand-400': '#7592ff',
-        'brand-500': '#465fff',
-        'brand-600': '#3641f5',
-        'brand-700': '#2a31d8',
-        'brand-800': '#252dae',
-        'brand-900': '#262e89',
-        'brand-950': '#161950',
+        // Brand scale — nilai riil dari CSS var, flip per mode:
+        // light = biru TailAdmin (#465fff), dark = neon green ala neon.tech (#00e599)
+        'brand-25': 'rgb(var(--brand-25) / <alpha-value>)',
+        'brand-50': 'rgb(var(--brand-50) / <alpha-value>)',
+        'brand-100': 'rgb(var(--brand-100) / <alpha-value>)',
+        'brand-200': 'rgb(var(--brand-200) / <alpha-value>)',
+        'brand-300': 'rgb(var(--brand-300) / <alpha-value>)',
+        'brand-400': 'rgb(var(--brand-400) / <alpha-value>)',
+        'brand-500': 'rgb(var(--brand-500) / <alpha-value>)',
+        'brand-600': 'rgb(var(--brand-600) / <alpha-value>)',
+        'brand-700': 'rgb(var(--brand-700) / <alpha-value>)',
+        'brand-800': 'rgb(var(--brand-800) / <alpha-value>)',
+        'brand-900': 'rgb(var(--brand-900) / <alpha-value>)',
+        'brand-950': 'rgb(var(--brand-950) / <alpha-value>)',
 
         // TailAdmin gray scale (#101828 core)
         'gray-25': '#fcfcfd',
@@ -121,7 +122,7 @@ const config: Config = {
         'theme-xl': '0px 20px 24px -4px rgba(16, 24, 40, 0.08), 0px 8px 8px -4px rgba(16, 24, 40, 0.03)',
       },
       fontFamily: {
-        sans: ['Outfit', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
     },
   },

@@ -1,83 +1,179 @@
 import { useLocation, Link } from 'wouter'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
-import { BarChart3, FileText, User, LogOut, ClipboardList, Shield, Boxes, Users, UserCog, ClipboardCheck, Sun, Moon, Building2 } from 'lucide-react'
+import { useSidebarCollapsed } from '@/hooks/use-sidebar-collapsed'
+import { apiClient } from '@/lib/api-client'
+import { getBusinessDateWIB, SHIFTS } from '@shared/timezone'
+import type { ShiftStatusData } from '@/lib/types'
+import { BarChart3, FileText, User, LogOut, ClipboardList, Shield, Boxes, Users, UserCog, ClipboardCheck, Sun, Moon, Building2, History, ChevronLeft, ChevronRight } from 'lucide-react'
 
-const STORE_NAV_ITEMS = [
-  { href: '/', label: 'Waste', icon: ClipboardList },
-  { href: '/dashboard', label: 'History', icon: BarChart3 },
-  { href: '/pdf', label: 'PDF Report', icon: FileText },
-  { href: '/tutorial', label: 'Tutorial', icon: ClipboardCheck },
-  { href: '/profile', label: 'Profil', icon: User },
-] as const
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof ClipboardList
+}
 
-const ADMIN_NAV_ITEMS = [
-  { href: '/', label: 'Admin Panel', icon: Shield },
-  { href: '/admin/restos', label: 'Kelola Resto', icon: Building2 },
-  { href: '/dashboard', label: 'Analytics', icon: BarChart3 },
-  { href: '/admin/personnel', label: 'Personnel', icon: Users },
-  { href: '/admin/station-items', label: 'Station Items', icon: Boxes },
-  { href: '/admin/users', label: 'Store Accounts', icon: UserCog },
-  { href: '/profile', label: 'Profil', icon: User },
-] as const
+const STORE_NAV: { section: string; items: NavItem[] }[] = [
+  {
+    section: 'Utama',
+    items: [
+      { href: '/', label: 'Input Waste', icon: ClipboardList },
+      { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+      { href: '/pdf', label: 'PDF Report', icon: FileText },
+    ],
+  },
+  {
+    section: 'Lainnya',
+    items: [
+      { href: '/tutorial', label: 'Tutorial', icon: ClipboardCheck },
+      { href: '/profile', label: 'Profil', icon: User },
+    ],
+  },
+]
+
+const ADMIN_NAV: { section: string; items: NavItem[] }[] = [
+  {
+    section: 'Administrasi',
+    items: [
+      { href: '/', label: 'Admin Panel', icon: Shield },
+      { href: '/admin/restos', label: 'Kelola Resto', icon: Building2 },
+      { href: '/admin/personnel', label: 'Personnel', icon: Users },
+      { href: '/admin/station-items', label: 'Station Items', icon: Boxes },
+      { href: '/admin/users', label: 'Store Accounts', icon: UserCog },
+    ],
+  },
+  {
+    section: 'Laporan',
+    items: [
+      { href: '/dashboard', label: 'Analytics', icon: BarChart3 },
+      { href: '/admin/history', label: 'History', icon: History },
+      { href: '/profile', label: 'Profil', icon: User },
+    ],
+  },
+]
+
+function isActive(href: string, location: string, isSuperAdmin: boolean) {
+  if (href === '/') {
+    return isSuperAdmin
+      ? location === '/'
+      : location === '/' || location === '/manual-waste' || location === '/auto-waste' || location === '/paste-waste'
+  }
+  return location === href || location.startsWith(href + '/')
+}
+
+/** Widget shift ringkas satu baris (store saja) */
+function ShiftMiniWidget() {
+  const businessDate = getBusinessDateWIB()
+  const { data } = useQuery<ShiftStatusData>({
+    queryKey: ['shift-status', businessDate],
+    queryFn: () => apiClient.fetch<ShiftStatusData>(`/api/get?action=shift-status&date=${businessDate}`),
+    staleTime: 60_000,
+  })
+  const done = SHIFTS.filter((s) => data?.shifts?.[s]?.done === true).length
+  const pct = Math.round((done / SHIFTS.length) * 100)
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-alt/50 px-2.5 py-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-text-dim">Shift</span>
+      <span className="text-[11px] font-bold tabular-nums text-text-primary">{done}/{SHIFTS.length}</span>
+      <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-border/60">
+        <div className="h-full rounded-full bg-brand-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
 
 export default function DesktopSidebar() {
   const [location] = useLocation()
-  const { user, logout } = useAuth()
+  const { user, store, logout } = useAuth()
   const { theme, toggle } = useTheme()
+  const { collapsed, toggle: toggleSidebar } = useSidebarCollapsed()
   const isSuperAdmin = user?.role === 'super_admin'
-  const navItems = isSuperAdmin ? ADMIN_NAV_ITEMS : STORE_NAV_ITEMS
+  const sections = isSuperAdmin ? ADMIN_NAV : STORE_NAV
 
-  const itemBase = 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
-  const itemActive = 'bg-brand-50 text-brand-700 dark:bg-brand-500/[0.12] dark:text-brand-400'
-  const itemInactive = 'text-gray-400 hover:bg-gray-100 hover:text-text-primary dark:hover:bg-white/5 dark:hover:text-text-primary'
+  const itemBase = 'flex h-9 shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors duration-150'
+  const itemActive = 'bg-brand-500/10 text-brand-700 dark:text-brand-300'
+  const itemInactive = 'text-text-muted hover:bg-surface-alt hover:text-text-primary'
 
   return (
-    <aside className="group/sidebar fixed left-0 top-0 z-40 hidden h-dvh w-[88px] flex-col overflow-hidden border-r border-border bg-surface transition-[width] duration-300 hover:w-[290px] lg:flex">
-      <div className="flex h-[72px] items-center gap-3 border-b border-border px-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">A</div>
-        <div className="hidden min-w-0 group-hover/sidebar:block">
-          <h1 className="text-lg font-semibold leading-tight text-text-primary">AWAS</h1>
-          <p className="text-[10px] text-text-muted">Waste App by Marko</p>
-        </div>
-      </div>
+    <aside className={`fixed left-0 top-0 z-40 hidden h-dvh flex-col overflow-hidden border-r border-border bg-surface lg:flex ${collapsed ? 'lg:w-[80px]' : 'lg:w-[248px]'}`}>
+      {/* Tombol collapse */}
+      <button
+        onClick={toggleSidebar}
+        title={collapsed ? 'Buka sidebar' : 'Tutup sidebar'}
+        aria-label={collapsed ? 'Buka sidebar' : 'Tutup sidebar'}
+        className="absolute -right-3 top-[46px] z-50 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-text-muted transition-colors hover:border-brand-400 hover:text-brand-500"
+      >
+        {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+      </button>
 
-      <div className="border-b border-border px-3 py-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-200 bg-brand-50 text-sm font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400">{user?.display_name?.charAt(0) || 'U'}</div>
-          <div className="hidden min-w-0 flex-1 group-hover/sidebar:block">
-            <p className="truncate text-xs font-semibold text-text-primary">{user?.display_name}</p>
-            <span className="inline-block rounded bg-brand-50 px-1.5 py-0.5 text-[9px] font-medium uppercase text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">{isSuperAdmin ? 'Super Admin' : 'Store'}</span>
+      {/* Brand */}
+      <div className={`flex h-14 shrink-0 items-center gap-2.5 border-b border-border ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
+        <div className="neon-on-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">A</div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-bold leading-tight tracking-tight text-text-primary">AWAS</h1>
+            <p className="text-[9px] font-medium uppercase tracking-wider text-text-dim">Waste App</p>
           </div>
-        </div>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-        <div className="space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const isActive = href === '/'
-              ? isSuperAdmin ? location === '/' : location === '/' || location === '/manual-waste' || location === '/auto-waste' || location === '/paste-waste'
-              : location.startsWith(href)
-
-            return (
-              <Link key={href} href={href} className={`${itemBase} ${isActive ? itemActive : itemInactive}`}>
-                <Icon className="size-5 shrink-0" strokeWidth={isActive ? 2.5 : 2} /><span className="hidden whitespace-nowrap group-hover/sidebar:inline">{label}</span>
-              </Link>
-            )
-          })}
+      {/* User ringkas */}
+      <div className={`flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-2.5 ${collapsed ? 'justify-center px-2' : ''}`}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-xs font-bold text-brand-700 dark:text-brand-300">
+          {user?.display_name?.charAt(0)?.toUpperCase() || 'U'}
         </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold leading-tight text-text-primary">{user?.display_name}</p>
+            <p className="truncate text-[10px] leading-tight text-text-dim">{isSuperAdmin ? 'Super Admin' : store?.code || 'Store'}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Nav — tanpa scroll, semua muat */}
+      <nav className="min-h-0 flex-1 overflow-hidden px-2.5 py-3">
+        {sections.map((sec) => (
+          <div key={sec.section} className="mb-4 last:mb-0">
+            {!collapsed && (
+              <p className="mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-widest text-text-dim">{sec.section}</p>
+            )}
+            <div className="space-y-0.5">
+              {sec.items.map(({ href, label, icon: Icon }) => {
+                const active = isActive(href, location, isSuperAdmin)
+                return (
+                  <Link key={href} href={href} title={collapsed ? label : undefined} className={`${itemBase} ${active ? itemActive : itemInactive} ${collapsed ? 'justify-center px-0' : ''}`}>
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${active ? 'neon-on-gradient bg-brand-500 text-white' : 'text-text-dim'}`}>
+                      <Icon className="size-4" strokeWidth={active ? 2.5 : 2} />
+                    </span>
+                    {!collapsed && <span className="truncate whitespace-nowrap">{label}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      <div className="space-y-1 border-t border-border p-3">
-        <button onClick={toggle} className={`${itemBase} ${itemInactive} w-full`} aria-label="Toggle tema">
-          {theme === 'dark' ? <Sun className="size-5 shrink-0" /> : <Moon className="size-5 shrink-0" />}<span className="hidden whitespace-nowrap group-hover/sidebar:inline">{theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}</span>
+      {/* Widget shift (store, expanded) */}
+      {!isSuperAdmin && !collapsed && (
+        <div className="shrink-0 px-2.5 pb-2.5">
+          <ShiftMiniWidget />
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="shrink-0 space-y-0.5 border-t border-border p-2.5">
+        <button onClick={toggle} title={collapsed ? 'Ganti tema' : undefined} aria-label="Toggle tema" className={`${itemBase} w-full text-text-muted hover:bg-surface-alt hover:text-text-primary ${collapsed ? 'justify-center px-0' : ''}`}>
+          {theme === 'dark' ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
+          {!collapsed && <span>Mode {theme === 'dark' ? 'Terang' : 'Gelap'}</span>}
         </button>
-        <button onClick={logout} className={`${itemBase} w-full text-gray-400 transition-colors hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-500/10 dark:hover:text-error-400`}>
-          <LogOut className="size-5 shrink-0" /><span className="hidden whitespace-nowrap group-hover/sidebar:inline">Logout</span>
+        <button onClick={logout} title={collapsed ? 'Logout' : undefined} className={`${itemBase} w-full text-text-muted hover:bg-error-500/10 hover:text-error-500 ${collapsed ? 'justify-center px-0' : ''}`}>
+          <LogOut className="size-4 shrink-0" />
+          {!collapsed && <span>Logout</span>}
         </button>
       </div>
-
-      <div className="px-5 pb-3"><p className="hidden whitespace-nowrap text-[9px] text-text-dim group-hover/sidebar:block">AWAS v4.0</p></div>
     </aside>
   )
 }

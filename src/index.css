@@ -1,9 +1,9 @@
 @font-face {
-  font-family: 'Outfit';
+  font-family: 'Inter';
   font-style: normal;
-  font-weight: 300 800;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/outfit-latin.woff2') format('woff2');
+  src: url('/fonts/inter-latin.woff2') format('woff2');
 }
 
 @tailwind base;
@@ -25,27 +25,61 @@
     --text-primary: 16 24 40; /* gray-900 */
     --text-muted: 102 112 133; /* gray-500 */
     --text-dim: 152 162 179;  /* gray-400 */
+    /* Brand = biru TailAdmin (#465fff core) */
+    --brand-25: 242 247 255;
+    --brand-50: 236 243 255;
+    --brand-100: 221 233 255;
+    --brand-200: 194 214 255;
+    --brand-300: 156 185 255;
+    --brand-400: 117 146 255;
+    --brand-500: 70 95 255;
+    --brand-600: 54 65 245;
+    --brand-700: 42 49 216;
+    --brand-800: 37 45 174;
+    --brand-900: 38 46 137;
+    --brand-950: 22 25 80;
   }
 
   .dark {
-    --bg: 16 24 40;           /* gray-900 */
-    --surface: 26 34 49;      /* gray-dark #1a2231 */
-    --surface-alt: 29 41 57;  /* gray-800 */
-    --border: 52 64 84;       /* gray-700 */
-    --text-primary: 255 255 255; /* white (use /90 alpha) */
-    --text-muted: 152 162 179; /* gray-400 */
-    --text-dim: 102 112 133;  /* gray-500 */
+    /* Neon dark ala neon.tech: near-black, border halus, teks zinc */
+    --bg: 7 8 10;             /* #07080a */
+    --surface: 13 15 18;      /* #0d0f12 */
+    --surface-alt: 20 23 27;  /* #14171b */
+    --border: 36 39 45;       /* garis halus */
+    --text-primary: 250 250 250; /* zinc-50 */
+    --text-muted: 161 161 170; /* zinc-400 */
+    --text-dim: 113 113 122;  /* zinc-500 */
+    /* Brand = neon green (#00e599 core) */
+    --brand-25: 3 20 15;
+    --brand-50: 4 32 23;
+    --brand-100: 6 52 37;
+    --brand-200: 8 78 55;
+    --brand-300: 12 110 78;
+    --brand-400: 0 184 122;
+    --brand-500: 0 229 153;
+    --brand-600: 0 204 136;
+    --brand-700: 0 166 111;
+    --brand-800: 2 125 84;
+    --brand-900: 4 98 67;
+    --brand-950: 2 44 31;
   }
 
   body {
-    font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
       Roboto, sans-serif;
     background-color: rgb(var(--bg));
     color: rgb(var(--text-primary) / 0.9);
     min-height: 100dvh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
   }
+
+  /* Tipografi ala neon.tech: heading rapat, angka tabular */
+  h1 { letter-spacing: -0.03em; }
+  h2 { letter-spacing: -0.025em; }
+  h3, h4 { letter-spacing: -0.02em; }
 
   /* Scrollbar styling */
   ::-webkit-scrollbar {
@@ -143,4 +177,107 @@
   .type-caret {
     animation: none;
   }
+}
+
+/* ---- Desktop experience: lightweight entrance + shimmer (transform/opacity only) ---- */
+@keyframes dsk-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dsk-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dsk-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* Pakai di page root / section: muncul halus dari bawah. Delay via inline style animationDelay. */
+.anim-enter {
+  animation: dsk-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-fade-in {
+  animation: dsk-fade-in 0.4s ease-out both;
+}
+
+/* Skeleton shimmer: lebih hidup dari pulse polos, tetap murah (transform saja) */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: rgb(var(--surface-alt));
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--surface)) / 0.7, transparent);
+  animation: dsk-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Hover lift khusus perangkat ber-pointer (desktop): jangan ganggu HP */
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift {
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px -12px rgb(16 24 40 / 0.18);
+  }
+  .dark .hover-lift:hover {
+    box-shadow: 0 12px 28px -12px rgb(0 0 0 / 0.5);
+  }
+  .btn-press:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-enter,
+  .anim-fade-in,
+  .skeleton-shimmer::after {
+    animation: none;
+  }
+  .skeleton-shimmer::after {
+    display: none;
+  }
+}
+
+/* ---- Neon dark mode ala neon.tech (unlayered: menang atas utilities) ---- */
+.dark {
+  color-scheme: dark;
+}
+/* Teks gelap otomatis di atas aksen neon solid (putih di #00e599 tidak terbaca) */
+.dark .bg-brand-500 {
+  color: #06130d;
+}
+/* Glow neon untuk CTA primer */
+.dark button.bg-brand-500,
+.dark a.bg-brand-500 {
+  box-shadow: 0 0 0 1px rgb(0 229 153 / 0.4), 0 8px 24px -8px rgb(0 229 153 / 0.5);
+}
+.dark button.bg-brand-500:hover,
+.dark a.bg-brand-500:hover {
+  box-shadow: 0 0 0 1px rgb(0 229 153 / 0.55), 0 8px 32px -6px rgb(0 229 153 / 0.65);
+}
+/* Ikon/logo di atas gradasi neon */
+.dark .neon-on-gradient {
+  color: #06130d;
+}
+.dark ::selection {
+  background: rgb(0 229 153 / 0.3);
+}
+.dark select:focus {
+  border-color: #00e599;
+}
+/* Aurora login ikut jadi neon di dark mode */
+.dark .login-aurora {
+  background-image: linear-gradient(
+    115deg,
+    rgb(0 229 153 / 0.14),
+    rgb(0 229 153 / 0.05),
+    rgb(122 90 248 / 0.1),
+    rgb(0 229 153 / 0.14)
+  );
 }

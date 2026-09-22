@@ -83,7 +83,7 @@ export default function AdminHistory() {
   )
 
   return (
-    <div className="mx-auto max-w-2xl py-2">
+    <div className="anim-enter mx-auto w-full max-w-4xl py-2">
       <div className="mb-4 flex items-center gap-3">
         <Link href="/" className="rounded-lg border border-border bg-surface p-2 text-text-muted shadow-theme-xs transition hover:border-warning hover:text-warning-600 dark:text-warning-400">
           <ChevronLeft size={16} />

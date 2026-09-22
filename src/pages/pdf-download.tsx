@@ -232,8 +232,9 @@ export default function PdfDownload() {
   const monthlyPdfs = monthPdfs?.pdfs || []
 
   return (
-    <div className="mx-auto w-full max-w-lg py-2">
+    <div className="mx-auto w-full max-w-5xl py-2">
       {progress && <ProgressOverlay progress={progress} />}
+      <div className="anim-enter grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
       <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-theme-md">
         <div className="border-b border-border bg-surface-alt/60 px-5 py-4">
           <h1 className="flex items-center gap-2 text-base font-semibold text-text-primary">
@@ -295,7 +296,7 @@ export default function PdfDownload() {
               <button
                 onClick={handleGeneratePDF}
                 disabled={generating || !isDateAvailable}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
+                className="neon-on-gradient flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
               >
                 <FileDown size={16} />
                 {generating ? 'Generating...' : 'Download PDF'}
@@ -323,7 +324,7 @@ export default function PdfDownload() {
               <button
                 onClick={handleDownloadMonth}
                 disabled={downloadingMonth || loadingMonth || !monthlyPdfs.length}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
+                className="neon-on-gradient flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
               >
                 <Archive size={16} />
                 {downloadingMonth ? 'Lagi bikin ZIP...' : `Download 1 Bulan (${monthPdfs?.count || 0} PDF)`}
@@ -353,6 +354,23 @@ export default function PdfDownload() {
             </div>
           )}
         </div>
+      </div>
+      <aside className="anim-enter hidden lg:block" style={{ animationDelay: '120ms' }}>
+        <div className="sticky top-6 space-y-4">
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-theme-xs">
+            <h2 className="mb-3 text-sm font-bold text-text-primary">Tentang arsip PDF</h2>
+            <ul className="space-y-2.5 text-xs leading-relaxed text-text-muted">
+              <li className="flex gap-2"><span className="text-brand-500">•</span>Berita acara harian berisi rekap waste per shift + dokumentasi foto.</li>
+              <li className="flex gap-2"><span className="text-brand-500">•</span>Link gambar di dalam PDF bersifat arsip — tetap bisa dibuka bertahun-tahun.</li>
+              <li className="flex gap-2"><span className="text-brand-500">•</span>Arsip bulanan mengunduh semua PDF harian dalam satu file ZIP.</li>
+            </ul>
+          </div>
+          <div className="rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-500/20 dark:bg-brand-500/5">
+            <h2 className="mb-2 text-sm font-bold text-brand-700 dark:text-brand-300">Tips</h2>
+            <p className="text-xs leading-relaxed text-brand-700/80 dark:text-brand-300/80">Generate PDF setelah shift MIDNIGHT selesai supaya datanya lengkap satu hari penuh.</p>
+          </div>
+        </div>
+      </aside>
       </div>
     </div>
   )

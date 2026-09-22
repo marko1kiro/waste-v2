@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import type { DashboardData } from '@/lib/types'
-import { CardSkeleton, Skeleton } from '@/components/ui/loading-spinner'
+import { CardSkeleton, Skeleton, ChartSkeleton } from '@/components/ui/loading-spinner'
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
-import { ChevronDown, Pencil, Trash2, Plus, Check, X, Loader2, CalendarDays } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2, Plus, Check, X, Loader2, CalendarDays, Layers, Scale, Activity } from 'lucide-react'
 import { STATION_UI } from '@shared/station-ui'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
@@ -95,16 +95,19 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-6xl py-2">
-        <h1 className="mb-4 text-xl font-semibold text-text-primary">Dashboard</h1>
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mx-auto w-full max-w-7xl py-2">
+        <div className="anim-enter mb-5 rounded-2xl border border-border bg-surface p-5 shadow-theme-xs">
+          <Skeleton className="mb-2 h-6 w-40" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
           <CardSkeleton /><CardSkeleton /><CardSkeleton /><CardSkeleton />
         </div>
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
-            <Skeleton className="mb-3 h-4 w-28" />
-            <Skeleton className="h-[240px] w-full" />
-          </div>
+        <div className="grid gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-8"><ChartSkeleton /></div>
+          <div className="xl:col-span-4"><ChartSkeleton /></div>
+          <div className="xl:col-span-7"><ChartSkeleton /></div>
+          <div className="xl:col-span-5"><ChartSkeleton /></div>
         </div>
       </div>
     )
@@ -132,116 +135,171 @@ export default function Dashboard() {
 
   const activeQCs = Array.from(new Set(filteredDaily.flatMap(() => (data.lastEntry?.qc ? [data.lastEntry.qc] : []))))
 
+  // Delta 7 hari terakhir vs 7 hari sebelumnya (dailyData urut terbaru dulu)
+  const qtyDelta = (() => {
+    const dd = data?.dailyData
+    if (!dd || dd.length < 14) return null
+    const sum = (arr: { qty: number }[]) => arr.reduce((a, b) => a + (b.qty || 0), 0)
+    const recent = sum(dd.slice(0, 7))
+    const prev = sum(dd.slice(7, 14))
+    if (prev === 0) return recent > 0 ? 100 : null
+    return Math.round(((recent - prev) / prev) * 100)
+  })()
+
   return (
-    <div className="mx-auto max-w-6xl py-2">
-      <div className="mb-5 rounded-2xl border border-border bg-surface p-5 shadow-theme-xs">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="mx-auto w-full max-w-7xl py-2">
+      {/* Header */}
+      <div className="anim-enter mb-5 overflow-hidden rounded-2xl border border-border bg-surface shadow-theme-xs">
+        <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-success-500" />
+        <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-text-primary">Dashboard</h1>
-            <p className="text-xs text-text-muted">Pantau tren waste harian & breakdown station.</p>
+            <h1 className="text-xl font-bold tracking-tight text-text-primary lg:text-2xl">Dashboard</h1>
+            <p className="mt-1 text-xs text-text-muted lg:text-sm">Pantau tren waste harian & breakdown station.</p>
             {data.lastEntry && (
               <p className="mt-2 text-xs text-text-muted">
-                Entry terakhir: <span className="text-text-primary">{data.lastEntry.date}</span> • <span className="text-text-primary">{data.lastEntry.station}</span> • <span className="text-text-primary">{data.lastEntry.shift}</span>
+                Entry terakhir: <span className="font-medium text-text-primary">{data.lastEntry.date}</span> • <span className="font-medium text-text-primary">{data.lastEntry.station}</span> • <span className="font-medium text-text-primary">{data.lastEntry.shift}</span>
               </p>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {activeQCs.length > 0 ? activeQCs.map((qc) => (
-              <span key={qc} className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-[11px] font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400">QC: {qc}</span>
-            )) : <span className="rounded-full border border-border px-3 py-1 text-[11px] text-text-muted">Belum ada QC aktif</span>}
+          <div className="flex flex-col gap-3 lg:items-end">
+            <div className="flex flex-wrap gap-2">
+              {activeQCs.length > 0 ? activeQCs.map((qc) => (
+                <span key={qc} className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-[11px] font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">QC: {qc}</span>
+              )) : <span className="rounded-full border border-border px-3 py-1 text-[11px] text-text-muted">Belum ada QC aktif</span>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {RANGE_OPTIONS.map((r) => (
+                <button key={r} onClick={() => setRange(r)} className={`btn-press rounded-lg border px-3 py-2 text-xs font-semibold transition ${range === r ? 'border-brand-500 bg-brand-500 text-white shadow-theme-xs' : 'border-border bg-surface text-text-muted hover:border-brand-300 hover:text-text-primary'}`}>
+                  {r === 9999 ? 'ALL' : `${r}H`}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-text-primary">Dashboard</h1>
-          <p className="text-xs text-text-muted">Pantau tren waste harian & breakdown station.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {RANGE_OPTIONS.map((r) => (
-            <button key={r} onClick={() => setRange(r)} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${range === r ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400' : 'border-border bg-surface text-text-muted hover:bg-surface-alt'}`}>
-              {r === 9999 ? 'ALL' : `${r}H`}
-            </button>
-          ))}
-        </div>
+      {/* KPI cards */}
+      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
+        <StatCard label="Total Hari" value={data.summary.totalDays} icon={CalendarDays}
+          iconCls="bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300"
+          barCls="from-brand-500 to-brand-300" delay={0} />
+        <StatCard label="Total Item" value={data.summary.totalItems} icon={Layers}
+          iconCls="bg-warning-50 text-warning-600 dark:bg-warning-500/10 dark:text-warning-400"
+          barCls="from-warning-500 to-warning-300" delay={70} />
+        <StatCard label="Total Qty" value={data.summary.totalQty} icon={Scale}
+          iconCls="bg-success-50 text-success-600 dark:bg-success-500/10 dark:text-success-400"
+          barCls="from-success-500 to-success-300" delay={140} delta={qtyDelta} deltaHint="vs 7 hari lalu" />
+        <StatCard label="Avg Qty/Hari" value={data.summary.avgQtyPerDay} icon={Activity}
+          iconCls="bg-[#f4f0ff] text-[#7a5af8] dark:bg-[#7a5af8]/10 dark:text-[#a48afb]"
+          barCls="from-[#7a5af8] to-[#b8a6fb]" delay={210} />
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total Hari" value={data.summary.totalDays} />
-        <StatCard label="Total Item" value={data.summary.totalItems} />
-        <StatCard label="Total Qty" value={data.summary.totalQty} />
-        <StatCard label="Avg Qty/Hari" value={data.summary.avgQtyPerDay} />
-      </div>
+      {/* Charts: 12-kolom di desktop */}
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="anim-enter xl:col-span-8" style={{ animationDelay: '120ms' }}>
+          <Section title="Tren Harian" defaultOpen>
+            <div className="h-[260px] xl:h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={filteredDaily}>
+                  <XAxis dataKey="date" tick={CHART_TICK} />
+                  <YAxis tick={CHART_TICK} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                  <Area type="monotone" dataKey="qty" stroke="#465fff" fill="rgba(70,95,255,0.18)" strokeWidth={2.5} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Section>
+        </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Section title="Tren Harian" defaultOpen>
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={filteredDaily}>
-                <XAxis dataKey="date" tick={CHART_TICK} />
-                <YAxis tick={CHART_TICK} />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                <Area type="monotone" dataKey="qty" stroke="#465fff" fill="rgba(70,95,255,0.18)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Section>
+        <div className="anim-enter xl:col-span-4" style={{ animationDelay: '180ms' }}>
+          <Section title="Per Shift" defaultOpen>
+            <div className="h-[260px] xl:h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={shiftChartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={3}>
+                    {shiftChartData.map((entry, idx) => <Cell key={entry.name} fill={SHIFT_COLORS[idx % SHIFT_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {shiftChartData.map((entry, idx) => (
+                <span key={entry.name} className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SHIFT_COLORS[idx % SHIFT_COLORS.length] }} />
+                  {entry.name}
+                </span>
+              ))}
+            </div>
+          </Section>
+        </div>
 
-        <Section title="Per Station" defaultOpen>
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stationChartData}>
-                <XAxis dataKey="name" tick={CHART_TICK} />
-                <YAxis tick={CHART_TICK} />
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                <Bar dataKey="qty" radius={[8, 8, 0, 0]}>
-                  {stationChartData.map((entry) => <Cell key={entry.name} fill={STATION_COLORS[entry.name] || '#465fff'} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Section>
+        <div className="anim-enter xl:col-span-7" style={{ animationDelay: '240ms' }}>
+          <Section title="Per Station" defaultOpen>
+            <div className="h-[260px] xl:h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stationChartData}>
+                  <XAxis dataKey="name" tick={CHART_TICK} />
+                  <YAxis tick={CHART_TICK} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} cursor={{ fill: 'rgb(var(--surface-alt))', opacity: 0.5 }} />
+                  <Bar dataKey="qty" radius={[8, 8, 0, 0]}>
+                    {stationChartData.map((entry) => <Cell key={entry.name} fill={STATION_COLORS[entry.name] || '#465fff'} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Section>
+        </div>
 
-        <Section title="Per Shift">
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={shiftChartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={3}>
-                  {shiftChartData.map((entry, idx) => <Cell key={entry.name} fill={SHIFT_COLORS[idx % SHIFT_COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </Section>
-
-        <Section title="Top Produk">
-          <div className="space-y-3">
-            {data.topProducts.slice(0, 10).map((p, i) => {
-              const maxQty = data.topProducts[0]?.qty || 1
-              const pct = (p.qty / maxQty) * 100
-              return (
-                <div key={p.name}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="text-text-muted"><span className="mr-2 text-text-dim">{i + 1}.</span>{p.name}</span>
-                    <span className="font-bold text-text-primary">{p.qty}</span>
+        <div className="anim-enter xl:col-span-5" style={{ animationDelay: '300ms' }}>
+          <Section title="Top Produk" defaultOpen>
+            <div className="max-h-[300px] space-y-3 overflow-y-auto pr-1">
+              {data.topProducts.slice(0, 10).map((p, i) => {
+                const maxQty = data.topProducts[0]?.qty || 1
+                const pct = (p.qty / maxQty) * 100
+                return (
+                  <div key={p.name}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="truncate text-text-muted"><span className="mr-2 font-semibold text-text-dim">{i + 1}.</span>{p.name}</span>
+                      <span className="ml-2 shrink-0 font-bold text-text-primary">{p.qty}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-alt"><div className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-brand-300 transition-all duration-700" style={{ width: `${pct}%` }} /></div>
                   </div>
-                  <div className="h-2 rounded-full bg-surface-alt"><div className="h-2 rounded-full bg-brand-500" style={{ width: `${pct}%` }} /></div>
-                </div>
-              )
-            })}
-          </div>
-        </Section>
+                )
+              })}
+            </div>
+          </Section>
+        </div>
       </div>
     </div>
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+
+function StatCard({ label, value, icon: Icon, iconCls, barCls, delay = 0, delta = null, deltaHint = '' }: {
+  label: string
+  value: number
+  icon: typeof CalendarDays
+  iconCls: string
+  barCls: string
+  delay?: number
+  delta?: number | null
+  deltaHint?: string
+}) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
-      <p className="mb-2 text-[10px] font-semibold uppercase text-text-muted">{label}</p>
+    <div className="anim-enter hover-lift relative overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-theme-xs" style={{ animationDelay: `${delay}ms` }}>
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${barCls}`} />
+      <div className="flex items-start justify-between gap-2">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconCls}`}>
+          <Icon size={20} strokeWidth={2.25} />
+        </div>
+        {delta !== null && (
+          <span title={deltaHint} className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${delta >= 0 ? 'bg-error-50 text-error-600 dark:bg-error-500/10 dark:text-error-400' : 'bg-success-50 text-success-600 dark:bg-success-500/10 dark:text-success-400'}`}>
+            {delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%
+          </span>
+        )}
+      </div>
+      <p className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">{label}</p>
       <AnimatedNumber value={value} />
     </div>
   )
@@ -265,7 +323,7 @@ function AnimatedNumber({ value }: { value: number }) {
     return () => cancelAnimationFrame(frame)
   }, [value])
 
-  return <span className="text-2xl font-semibold text-text-primary">{displayValue}</span>
+  return <span className="text-2xl font-semibold tabular-nums text-text-primary">{displayValue}</span>
 }
 
 function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -442,7 +500,7 @@ export function DashboardHistory() {
                          <col className="w-[130px]" />
                          <col className="w-[68px]" />
                        </colgroup>
-                       <thead>
+                       <thead className="lg:sticky lg:top-0 lg:z-10 lg:bg-surface">
                          <tr className="text-left text-[10px] uppercase text-text-muted">
                            <th className="pb-1 pr-2">Nama Produk</th>
                            <th className="pb-1 pr-2 text-center">Qty</th>

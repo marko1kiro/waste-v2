@@ -147,7 +147,7 @@ export default function AdminPersonnel() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl py-2">
+    <div className="anim-enter mx-auto w-full max-w-7xl py-2">
       <ConfirmDialog open={Boolean(deleting)} title="Hapus personnel?" description={`Personnel ${deleting?.full_name || deleting?.name || ''} akan dihapus.`} onConfirm={deactivatePersonnel} onCancel={() => setDeleting(null)} />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2">

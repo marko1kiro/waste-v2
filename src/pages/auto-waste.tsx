@@ -32,6 +32,11 @@ import {
   Plus,
   Trash2,
   ArrowLeft,
+  ClipboardPaste,
+  SlidersHorizontal,
+  ListChecks,
+  FileCheck2,
+  Check,
 } from 'lucide-react'
 
 interface StationItem {
@@ -602,10 +607,33 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl py-2" onClickCapture={markDirty} onChangeCapture={markDirty}>
+    <div className="mx-auto w-full max-w-7xl py-2" onClickCapture={markDirty} onChangeCapture={markDirty}>
       {progress && <ProgressOverlay progress={progress} />}
       {persistenceStatus && <div role="status" aria-live="polite" className="mb-3 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"><span>{persistenceStatus}</span>{persistenceStatus === 'Draft dipulihkan.' && <button type="button" onClick={() => setPersistenceStatus('')} aria-label="Tutup status draft">Tutup</button>}</div>}
       {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><p className="font-semibold">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => { retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems).catch((err) => toast.error('Gagal coba lagi', err instanceof Error ? err.message : 'Unknown error')) }} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Login</button>}</div>)}</section>}
+
+      <div className="lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
+        {/* Wizard rail: desktop only */}
+        <aside className="hidden lg:block">
+          <div className="anim-enter sticky top-6 space-y-4">
+            <div className="rounded-2xl border border-border bg-surface p-4 shadow-theme-xs">
+              <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-widest text-text-dim">Alur Input</p>
+              <WizardSteps step={step} pasteMode={pasteMode} />
+            </div>
+            <div className="rounded-2xl border border-border bg-surface p-4 shadow-theme-xs">
+              <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-widest text-text-dim">Ringkasan</p>
+              <dl className="space-y-2.5 text-xs">
+                <div className="flex items-center justify-between gap-2"><dt className="text-text-muted">Tanggal</dt><dd className="font-semibold text-text-primary">{businessDate || '-'}</dd></div>
+                <div className="flex items-center justify-between gap-2"><dt className="text-text-muted">Shift</dt><dd className="font-semibold text-text-primary">{shift}</dd></div>
+                <div className="flex items-center justify-between gap-2"><dt className="text-text-muted">Station</dt><dd className="font-semibold text-text-primary">{selectedStations.length ? `${selectedStations.length} dipilih` : '-'}</dd></div>
+                <div className="flex items-center justify-between gap-2"><dt className="text-text-muted">QC</dt><dd className="max-w-[140px] truncate font-semibold text-text-primary">{qcName || '-'}</dd></div>
+                <div className="flex items-center justify-between gap-2"><dt className="text-text-muted">Manager</dt><dd className="max-w-[140px] truncate font-semibold text-text-primary">{managerName || '-'}</dd></div>
+              </dl>
+            </div>
+          </div>
+        </aside>
+
+        <div className="min-w-0">
 
       <div className="mb-5 flex items-center justify-between">
         <div>
@@ -936,7 +964,53 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       {step === 'success' && (
         <section className="rounded-xl border border-success-200 bg-success-50 p-6 text-center shadow-theme-xs dark:border-success-500/20 dark:bg-success-500/10"><div className="mb-3 flex justify-center"><CheckCircle2 size={48} className="text-success-500" /></div><h2 className="mb-2 text-xl font-semibold text-success-700 dark:text-success-400">Mantap, Tersimpan!</h2><p className="mb-5 text-sm text-text-primary">{successMessage}</p><div className="mb-6 space-y-1 text-xs text-text-muted"><p>Tanggal: {businessDate}</p><p>Shift: {shift}</p><p>Station: {testerMode ? 'TESTER' : selectedStations.join(', ')}</p><p>QC: {qcName || '-'}</p><p>Manager: {managerName || '-'}</p></div><button type="button" onClick={resetForm} className="rounded-lg bg-brand-500 px-6 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">Shift Baru</button></section>
       )}
+        </div>
+      </div>
     </div>
+  )
+}
+
+const WIZARD_STEPS: { key: Step; label: string; desc: string; icon: typeof ClipboardPaste }[] = [
+  { key: 'paste', label: 'Paste WA', desc: 'Tempel format WhatsApp', icon: ClipboardPaste },
+  { key: 'config', label: 'Konfigurasi', desc: 'Tanggal, shift & station', icon: SlidersHorizontal },
+  { key: 'items', label: 'Item Waste', desc: 'Isi item per station', icon: ListChecks },
+  { key: 'preview', label: 'Preview', desc: 'Cek sebelum kirim', icon: FileCheck2 },
+  { key: 'success', label: 'Selesai', desc: 'Data tersimpan', icon: CheckCircle2 },
+]
+
+function WizardSteps({ step, pasteMode }: { step: Step; pasteMode: boolean }) {
+  const visible = WIZARD_STEPS.filter((s) => pasteMode || s.key !== 'paste')
+  const currentIdx = visible.findIndex((s) => s.key === step)
+  return (
+    <ol className="relative space-y-1">
+      {visible.map((s, i) => {
+        const Icon = s.icon
+        const done = i < currentIdx
+        const current = i === currentIdx
+        return (
+          <li key={s.key} className="relative">
+            {i < visible.length - 1 && (
+              <span className={`absolute left-[17px] top-9 h-5 w-px ${done ? 'bg-brand-500' : 'bg-border'}`} aria-hidden />
+            )}
+            <div className={`flex items-center gap-3 rounded-xl px-2 py-2 transition-colors ${current ? 'bg-brand-50 dark:bg-brand-500/10' : ''}`}>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-colors ${
+                done
+                  ? 'border-brand-500 bg-brand-500 text-white'
+                  : current
+                    ? 'border-brand-500 bg-surface text-brand-600 dark:text-brand-300'
+                    : 'border-border bg-surface-alt text-text-dim'
+              }`}>
+                {done ? <Check size={14} strokeWidth={3} /> : <Icon size={14} />}
+              </span>
+              <span className="min-w-0">
+                <span className={`block truncate text-xs font-semibold leading-tight ${current ? 'text-brand-700 dark:text-brand-300' : done ? 'text-text-primary' : 'text-text-dim'}`}>{s.label}</span>
+                <span className="block truncate text-[10px] leading-tight text-text-dim">{s.desc}</span>
+              </span>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
   )
 }
 
