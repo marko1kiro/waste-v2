@@ -21,6 +21,7 @@
     "check:paste-parser": "tsx scripts/check-paste-waste-parser.ts",
     "check:offline-waste": "tsx scripts/check-offline-waste.ts",
     "check:photo-compression": "tsx scripts/check-photo-compression.ts",
+    "check:csp-headers": "tsx scripts/check-csp-headers.ts",
     "check:waste-submit-progress": "tsx scripts/check-waste-submit-progress.ts",
     "check:store-context": "tsx scripts/check-store-context.ts",
     "check:neutral-drive": "tsx scripts/check-neutral-drive.ts"
