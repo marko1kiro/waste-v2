@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter'
-import { Coffee } from 'lucide-react'
+import { Copyright } from 'lucide-react'
 import DesktopSidebar from './desktop-sidebar'
 import MobileBottomNav from './mobile-bottom-nav'
 import ShiftStatusBar from './shift-status-bar'
@@ -30,10 +30,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <div className="px-4 pb-28 pt-4 lg:pb-8">
           {children}
         </div>
-        <footer className="mb-20 flex items-center justify-center gap-1 pb-4 text-[11px] text-text-muted lg:mb-0">
-          <span>&copy;2026 Made with</span>
-          <Coffee size={12} className="text-warning" />
-          <span>by Marko</span>
+        <footer className="mb-20 flex flex-wrap items-center justify-center gap-x-1.5 px-4 pb-4 text-center text-[11px] text-text-muted lg:mb-0">
+          <span className="font-bold tracking-wide text-text-secondary">XDIRGA LABS</span>
+          <Copyright size={12} className="shrink-0" />
+          <span>2026</span>
+          <span aria-hidden="true" className="text-text-dim">|</span>
+          <span className="tracking-wide">SIMPLIFY YOUR MIND</span>
         </footer>
       </main>
 
