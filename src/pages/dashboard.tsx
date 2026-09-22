@@ -323,7 +323,7 @@ function AnimatedNumber({ value }: { value: number }) {
     return () => cancelAnimationFrame(frame)
   }, [value])
 
-  return <span className="text-2xl font-semibold text-text-primary">{displayValue}</span>
+  return <span className="text-2xl font-semibold tabular-nums text-text-primary">{displayValue}</span>
 }
 
 function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
