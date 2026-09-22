@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { neon } from '@neondatabase/serverless'
-import { r2Upload, r2Delete, isR2Url, getR2KeyFromUrl, getR2ProxyRef, resolveR2Key } from './r2.js'
+import { r2Upload, r2Delete, isR2Url, getR2KeyFromUrl, getR2ProxyRef, resolveR2Key, isR2KeyRef } from './r2.js'
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 
 // ─── DB ────────────────────────────────────────────────
@@ -148,7 +148,10 @@ export function verifyBlobAccessToken(token: string): BlobAccessPayload | null {
     const expectedBuffer = Buffer.from(expected, 'base64url')
     if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) return null
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as BlobAccessPayload
-    if (header !== base64url(JSON.stringify({ alg: 'HS256', typ: 'BLOB_ACCESS' })) || typeof payload.blobUrl !== 'string' || !payload.blobUrl.startsWith('https://') || !Number.isInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null
+    // blobUrl may be a legacy https URL or a private-R2 relative key ref
+    // (new uploads store keys like "CKRBUL/2026-09/waste-docs/....jpg").
+    const blobUrlOk = typeof payload.blobUrl === 'string' && (payload.blobUrl.startsWith('https://') || isR2KeyRef(payload.blobUrl))
+    if (header !== base64url(JSON.stringify({ alg: 'HS256', typ: 'BLOB_ACCESS' })) || !blobUrlOk || !Number.isInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null
     return payload
   } catch {
     return null
