@@ -15,6 +15,10 @@ function isCalendarDate(date: string | undefined): date is string {
 const MAX_ASSET_COUNT = 60
 const MAX_ASSET_BYTES = 20 * 1024 * 1024
 const ASSET_CONCURRENCY = 4
+// PDF image links are archive links: they must stay valid as long as the PDF exists.
+// ~10 years = effectively permanent (covers the 1-year archive need with wide margin),
+// while keeping the exp claim so the shared token verifier semantics stay unchanged.
+const PDF_ASSET_LINK_TTL_SECONDS = 10 * 365 * 24 * 60 * 60
 const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 function dataUrl(contentType: string, bytes: Buffer): string {
@@ -274,7 +278,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const signatureAssets = await loadAssets(signatureUrls, true)
     const assets = new Map([...documentationAssets, ...signatureAssets])
     const assetUrls = [...new Set([...signatureUrls, ...documentationUrls])]
-    const assetLinks = new Map(assetUrls.map((url) => [url, `${String(config.public_url || process.env.PUBLIC_URL || 'https://www.gacoanku.my.id').replace(/\/$/, '')}/api/signatures?blobUrl=${encodeURIComponent(blobUrl(url) || url)}&token=${encodeURIComponent(createBlobAccessToken(blobUrl(url) || url))}`]))
+    const assetLinks = new Map(assetUrls.map((url) => [url, `${String(config.public_url || process.env.PUBLIC_URL || 'https://www.gacoanku.my.id').replace(/\/$/, '')}/api/signatures?blobUrl=${encodeURIComponent(blobUrl(url) || url)}&token=${encodeURIComponent(createBlobAccessToken(blobUrl(url) || url, PDF_ASSET_LINK_TTL_SECONDS))}`]))
     const pdf = renderDailyPdf({
       date,
       storeName: String(configRows[0]?.store_name || storeName),
