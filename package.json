@@ -24,7 +24,8 @@
     "check:csp-headers": "tsx scripts/check-csp-headers.ts",
     "check:waste-submit-progress": "tsx scripts/check-waste-submit-progress.ts",
     "check:store-context": "tsx scripts/check-store-context.ts",
-    "check:neutral-drive": "tsx scripts/check-neutral-drive.ts"
+    "check:neutral-drive": "tsx scripts/check-neutral-drive.ts",
+    "check:delete-shift-assets": "tsx scripts/check-delete-shift-assets.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
