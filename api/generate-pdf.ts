@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Readable } from 'stream'
 import { get } from '@vercel/blob'
 import { authenticateRequest, createBlobAccessToken, fetchDayGrouped, getSQL, resolveStoreContext, getRequestedStoreId } from '../server/lib.js'
-import { downloadGoogleDrivePdf, findGoogleDrivePdf, GoogleDriveBackupError, uploadGoogleDrivePdf } from '../server/google-drive.js'
+import { downloadNeutralDrivePdf, findNeutralDrivePdf, GoogleDriveNeutralError, uploadNeutralDrivePdf } from '../server/google-drive-neutral.js'
 import { findR2Pdf, downloadR2Pdf, uploadR2Pdf, resolveR2Key, r2GetObject } from '../server/r2.js'
 import { buildPdfFilename, renderDailyPdf, type PdfItem } from '../shared/pdf-renderer.js'
 import { resolvePdfSignatures, type SignaturePersonnel } from '../shared/pdf-signature-resolver.js'
@@ -165,18 +165,18 @@ async function markDriveGenerationComplete(date: string, storeId: number): Promi
   `
 }
 
-async function waitForDrivePdf(filename: string) {
+async function waitForDrivePdf(filename: string, folderId: string) {
   const delays = [0, 500, 900, 1400, 2000, 2800]
   for (const delay of delays) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-    const existing = await findGoogleDrivePdf(filename)
+    const existing = await findNeutralDrivePdf(filename, folderId)
     if (existing) return existing
   }
   return null
 }
 
-function isDriveError(error: unknown): error is GoogleDriveBackupError {
-  return error instanceof GoogleDriveBackupError
+function isDriveError(error: unknown): error is GoogleDriveNeutralError {
+  return error instanceof GoogleDriveNeutralError
 }
 
 function driveFailureMessage(error: unknown): string {
@@ -220,6 +220,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const store = storeRows[0]
     if (!store) return res.status(404).json({ error: 'Store tidak ditemukan' })
     const isNeutral = store.drive_account !== 'legacy'
+    // Legacy CKRBUL: Drive folder comes from stores.drive_folder_id, auth via service account.
+    const legacyDriveFolderId = String(store.drive_folder_id || '').trim()
     const storeCode = String(store.code || 'STORE')
     const config = (configRows[0]?.extra_config as Record<string, unknown> | undefined) || {}
     const filename = buildPdfFilename(String(config.store_code || storeCode), date)
@@ -237,19 +239,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       } else {
-        // Legacy CKRBUL: check Google Drive backup (UNTOUCHED)
+        // Legacy CKRBUL: check Google Drive backup via service account
         try {
-          const existing = await findGoogleDrivePdf(filename)
+          const existing = await findNeutralDrivePdf(filename, legacyDriveFolderId)
           if (existing) {
-            const drivePdf = await downloadGoogleDrivePdf(existing.id)
+            const drivePdf = await downloadNeutralDrivePdf(existing.id)
             void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update Drive PDF status:', error))
             return streamGoogleDrivePdf(res, filename, drivePdf)
           }
           driveGenerationClaimed = await claimDriveGeneration(date, storeId)
           if (!driveGenerationClaimed) {
-            const uploadedByAnotherRequest = await waitForDrivePdf(filename)
+            const uploadedByAnotherRequest = await waitForDrivePdf(filename, legacyDriveFolderId)
             if (uploadedByAnotherRequest) {
-              const drivePdf = await downloadGoogleDrivePdf(uploadedByAnotherRequest.id)
+              const drivePdf = await downloadNeutralDrivePdf(uploadedByAnotherRequest.id)
               return streamGoogleDrivePdf(res, filename, drivePdf)
             }
             return res.status(503).json({ error: 'PDF sedang diamankan ke Google Drive oleh request lain. Coba download lagi dalam beberapa detik.' })
@@ -301,9 +303,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // R2 backup failure is non-fatal for download, but log it
         }
       } else {
-        // Legacy CKRBUL: upload backup to Google Drive (UNTOUCHED)
+        // Legacy CKRBUL: upload backup to Google Drive via service account
         try {
-          await uploadGoogleDrivePdf(filename, Buffer.from(pdf))
+          await uploadNeutralDrivePdf(filename, Buffer.from(pdf), legacyDriveFolderId)
           driveGenerationClaimed = false
           await markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not finalize Drive PDF status:', error))
         } catch (error) {

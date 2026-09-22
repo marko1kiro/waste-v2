@@ -2,35 +2,36 @@
 
 ## Purpose
 
-`GET /api/generate-pdf?date=YYYY-MM-DD` checks the actual completion record in `daily_records`. If the row for that date and `MIDNIGHT` has `done = true`, the canonical PDF must exist in Google Drive before the endpoint returns a download. The fixed backup folder is:
+`GET /api/generate-pdf?date=YYYY-MM-DD` checks the actual completion record in `daily_records`. If the row for that date and `MIDNIGHT` has `done = true`, the canonical PDF must exist in Google Drive before the endpoint returns a download. The backup folder is per-store, taken from the `stores.drive_folder_id` column (for CKRBUL this points at the dedicated Kampung Bulu folder).
 
-```text
-1R0xINfBaFmgogIEsfzS20ivd-nzWwiBw
-```
+The backend searches that folder for the exact canonical filename (`BA Waste {store_code} - DDMMYYYY.pdf`). An existing match is downloaded through the authenticated backend. A missing match is rendered, uploaded once, then returned. Dates without completed MIDNIGHT continue using the normal on-demand path and make no Google Drive request.
 
-The backend searches that folder for the exact canonical filename (`BA Waste {store_code} - DDMMYYYY.pdf`). An existing match is downloaded through the authenticated backend. A missing match is rendered, uploaded once, then returned. Dates without completed MIDNIGHT continue using the normal on-demand path and make no Google OAuth or Drive request.
+Authentication uses a Google Cloud **service account** (`server/google-drive-neutral.ts`) — no OAuth consent screen, no refresh-token expiry.
 
 ## Required server environment
 
-Set these secrets only in the Vercel server environment (Production, and Preview only if preview backups are intended):
+Set this secret only in the Vercel server environment (Production, and Preview only if preview backups are intended):
 
 ```env
-GOOGLE_DRIVE_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
-GOOGLE_DRIVE_CLIENT_SECRET=your-oauth-client-secret
-GOOGLE_DRIVE_REFRESH_TOKEN=your-owner-account-refresh-token
+GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account", ... }
 ```
 
-Do **not** prefix them with `VITE_`, return them in an API response, include them in frontend code, or commit their values. `.env.example` intentionally contains placeholders only.
+The full service-account JSON key on a single line. Do **not** prefix it with `VITE_`, return it in an API response, include it in frontend code, or commit its value. `.env.example` intentionally contains a placeholder only.
 
-## OAuth owner-account setup
+The Drive folder itself is configured per-store in the database (`stores.drive_folder_id`), not via env.
 
-1. In the Google Cloud project owned by the Drive owner, enable **Google Drive API**.
-2. Create an OAuth 2.0 client and retain its client ID and client secret in the server secret manager.
-3. Complete an OAuth consent flow while signed in as the account that owns (or has Editor access to) the folder above. Request offline access and the scope `https://www.googleapis.com/auth/drive` so the backend can search and retrieve the exact files in that folder as well as upload them.
-4. Store the resulting refresh token as `GOOGLE_DRIVE_REFRESH_TOKEN`. It is an owner-account credential; revoke and replace it if it is exposed.
-5. Deploy the three values and verify a completed-MIDNIGHT PDF. A missing/invalid value returns a clear `503`; the endpoint intentionally does not return a newly generated but unbacked PDF.
+## Service account setup
 
-The refresh token must remain valid for the deployed OAuth client. Google may revoke it when consent is revoked, the account security state changes, or too many refresh tokens are issued. Rotate the Vercel secret after generating a replacement.
+1. In a Google Cloud project, enable **Google Drive API**.
+2. Create a service account (IAM & Admin → Service Accounts) and create a JSON key for it. Keep the JSON private — anyone holding it can act as the service account.
+3. In Google Drive (using the dedicated resto account), create the backup folder (e.g. `AWAS PDF - Kampung Bulu`), then **Share** it with the service account's `client_email` as **Editor**.
+4. Copy the folder ID from the folder URL and store it in the database:
+   ```sql
+   UPDATE stores SET drive_folder_id = '<folder-id>' WHERE code = 'CKRBUL';
+   ```
+5. Set `GOOGLE_SERVICE_ACCOUNT_KEY` in Vercel (Production) to the full JSON key and redeploy. Then verify a completed-MIDNIGHT PDF download. A missing/invalid key or folder returns a clear `503`; the endpoint intentionally does not return a newly generated but unbacked PDF.
+
+Service-account keys do not expire the way Testing-mode OAuth refresh tokens do (7 days). To rotate: create a new key, update the Vercel secret, redeploy, then delete the old key.
 
 ## Concurrency and recovery
 
