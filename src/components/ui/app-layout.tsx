@@ -21,7 +21,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-dvh">
       <DesktopSidebar />
 
-      <main className={`transition-[margin] duration-300 ease-out ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[264px]'}`}>
+      <main className={`transition-[margin] duration-300 ease-out ${collapsed ? 'lg:ml-[80px]' : 'lg:ml-[248px]'}`}>
         {showShiftBar && (
           <div className="px-4 pt-4">
             <ShiftStatusBar />
