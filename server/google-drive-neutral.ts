@@ -85,9 +85,21 @@ export function resolveNeutralDriveConfig(
   return { serviceAccountKey, folderId }
 }
 
-function upstreamError(operation: string, status?: number): GoogleDriveNeutralError {
+function upstreamError(operation: string, status?: number, detail?: string): GoogleDriveNeutralError {
   const suffix = status ? ` (HTTP ${status})` : ''
-  return new GoogleDriveNeutralError(`Google Drive (neutral) ${operation} failed${suffix}`, 'upstream')
+  const body = detail ? ` :: ${detail}` : ''
+  return new GoogleDriveNeutralError(`Google Drive (neutral) ${operation} failed${suffix}${body}`, 'upstream')
+}
+
+// Include a short snippet of Google's error body in server logs so the exact
+// rejection reason (permission vs quota vs config) is visible without guessing.
+async function responseDetail(response: Response): Promise<string> {
+  try {
+    const text = await response.text()
+    return text ? text.slice(0, 300).replace(/\s+/g, ' ') : ''
+  } catch {
+    return ''
+  }
 }
 
 interface CachedAccessToken {
@@ -109,7 +121,7 @@ async function refreshAccessToken(): Promise<string> {
       assertion: jwt,
     }),
   })
-  if (!response.ok) throw upstreamError('SA token exchange', response.status)
+  if (!response.ok) throw upstreamError('SA token exchange', response.status, await responseDetail(response))
   const body = await response.json() as { access_token?: unknown; expires_in?: unknown }
   if (typeof body.access_token !== 'string' || !body.access_token) throw upstreamError('SA token exchange')
   const expiresIn = typeof body.expires_in === 'number' && Number.isFinite(body.expires_in) ? body.expires_in : 300
@@ -154,7 +166,7 @@ export async function findNeutralDrivePdf(filename: string, folderId: string): P
     pageSize: '1',
   })
   const response = await authorizedFetch(`${GOOGLE_DRIVE_API_URL}?${params.toString()}`)
-  if (!response.ok) throw upstreamError('file search', response.status)
+  if (!response.ok) throw upstreamError('file search', response.status, await responseDetail(response))
   const body = await response.json() as { files?: unknown }
   if (!Array.isArray(body.files) || body.files.length === 0) return null
   const file = body.files[0] as { id?: unknown; name?: unknown; mimeType?: unknown }
@@ -166,7 +178,7 @@ export async function downloadNeutralDrivePdf(fileId: string): Promise<Response>
   const params = new URLSearchParams({ alt: 'media' })
   const response = await authorizedFetch(`${GOOGLE_DRIVE_API_URL}/${encodeURIComponent(fileId)}?${params.toString()}`)
   const contentType = response.headers.get('content-type')?.split(';', 1)[0].toLowerCase()
-  if (!response.ok || !response.body || contentType !== 'application/pdf') throw upstreamError('file download', response.status)
+  if (!response.ok || !response.body || contentType !== 'application/pdf') throw upstreamError('file download', response.status, await responseDetail(response))
   return response
 }
 
@@ -186,7 +198,7 @@ export async function uploadNeutralDrivePdf(filename: string, pdf: Buffer, folde
     headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
     body,
   })
-  if (!response.ok) throw upstreamError('file upload', response.status)
+  if (!response.ok) throw upstreamError('file upload', response.status, await responseDetail(response))
   const file = await response.json() as { id?: unknown; name?: unknown; mimeType?: unknown }
   if (typeof file.id !== 'string' || file.name !== filename || file.mimeType !== 'application/pdf') throw upstreamError('file upload')
   return { id: file.id, name: file.name, mimeType: file.mimeType }
