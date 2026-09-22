@@ -296,7 +296,7 @@ export default function PdfDownload() {
               <button
                 onClick={handleGeneratePDF}
                 disabled={generating || !isDateAvailable}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
+                className="neon-on-gradient flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
               >
                 <FileDown size={16} />
                 {generating ? 'Generating...' : 'Download PDF'}
@@ -324,7 +324,7 @@ export default function PdfDownload() {
               <button
                 onClick={handleDownloadMonth}
                 disabled={downloadingMonth || loadingMonth || !monthlyPdfs.length}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
+                className="neon-on-gradient flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 py-3 text-sm font-semibold text-white shadow-theme-md transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
               >
                 <Archive size={16} />
                 {downloadingMonth ? 'Lagi bikin ZIP...' : `Download 1 Bulan (${monthPdfs?.count || 0} PDF)`}

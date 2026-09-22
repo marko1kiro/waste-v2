@@ -118,7 +118,7 @@ export default function DesktopSidebar() {
 
       {/* Brand */}
       <div className={`flex h-[72px] shrink-0 items-center gap-3 border-b border-border ${collapsed ? 'justify-center px-3' : 'px-5'}`}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-bold text-white shadow-theme-xs">A</div>
+        <div className="neon-on-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-bold text-white shadow-theme-xs">A</div>
         {!collapsed && (
           <div className="anim-fade-in min-w-0">
             <h1 className="text-lg font-bold leading-tight tracking-tight text-text-primary">AWAS</h1>

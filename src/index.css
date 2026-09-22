@@ -25,16 +25,43 @@
     --text-primary: 16 24 40; /* gray-900 */
     --text-muted: 102 112 133; /* gray-500 */
     --text-dim: 152 162 179;  /* gray-400 */
+    /* Brand = biru TailAdmin (#465fff core) */
+    --brand-25: 242 247 255;
+    --brand-50: 236 243 255;
+    --brand-100: 221 233 255;
+    --brand-200: 194 214 255;
+    --brand-300: 156 185 255;
+    --brand-400: 117 146 255;
+    --brand-500: 70 95 255;
+    --brand-600: 54 65 245;
+    --brand-700: 42 49 216;
+    --brand-800: 37 45 174;
+    --brand-900: 38 46 137;
+    --brand-950: 22 25 80;
   }
 
   .dark {
-    --bg: 16 24 40;           /* gray-900 */
-    --surface: 26 34 49;      /* gray-dark #1a2231 */
-    --surface-alt: 29 41 57;  /* gray-800 */
-    --border: 52 64 84;       /* gray-700 */
-    --text-primary: 255 255 255; /* white (use /90 alpha) */
-    --text-muted: 152 162 179; /* gray-400 */
-    --text-dim: 102 112 133;  /* gray-500 */
+    /* Neon dark ala neon.tech: near-black, border halus, teks zinc */
+    --bg: 7 8 10;             /* #07080a */
+    --surface: 13 15 18;      /* #0d0f12 */
+    --surface-alt: 20 23 27;  /* #14171b */
+    --border: 36 39 45;       /* garis halus */
+    --text-primary: 250 250 250; /* zinc-50 */
+    --text-muted: 161 161 170; /* zinc-400 */
+    --text-dim: 113 113 122;  /* zinc-500 */
+    /* Brand = neon green (#00e599 core) */
+    --brand-25: 3 20 15;
+    --brand-50: 4 32 23;
+    --brand-100: 6 52 37;
+    --brand-200: 8 78 55;
+    --brand-300: 12 110 78;
+    --brand-400: 0 184 122;
+    --brand-500: 0 229 153;
+    --brand-600: 0 204 136;
+    --brand-700: 0 166 111;
+    --brand-800: 2 125 84;
+    --brand-900: 4 98 67;
+    --brand-950: 2 44 31;
   }
 
   body {
@@ -208,4 +235,42 @@
   .skeleton-shimmer::after {
     display: none;
   }
+}
+
+/* ---- Neon dark mode ala neon.tech (unlayered: menang atas utilities) ---- */
+.dark {
+  color-scheme: dark;
+}
+/* Teks gelap otomatis di atas aksen neon solid (putih di #00e599 tidak terbaca) */
+.dark .bg-brand-500 {
+  color: #06130d;
+}
+/* Glow neon untuk CTA primer */
+.dark button.bg-brand-500,
+.dark a.bg-brand-500 {
+  box-shadow: 0 0 0 1px rgb(0 229 153 / 0.4), 0 8px 24px -8px rgb(0 229 153 / 0.5);
+}
+.dark button.bg-brand-500:hover,
+.dark a.bg-brand-500:hover {
+  box-shadow: 0 0 0 1px rgb(0 229 153 / 0.55), 0 8px 32px -6px rgb(0 229 153 / 0.65);
+}
+/* Ikon/logo di atas gradasi neon */
+.dark .neon-on-gradient {
+  color: #06130d;
+}
+.dark ::selection {
+  background: rgb(0 229 153 / 0.3);
+}
+.dark select:focus {
+  border-color: #00e599;
+}
+/* Aurora login ikut jadi neon di dark mode */
+.dark .login-aurora {
+  background-image: linear-gradient(
+    115deg,
+    rgb(0 229 153 / 0.14),
+    rgb(0 229 153 / 0.05),
+    rgb(122 90 248 / 0.1),
+    rgb(0 229 153 / 0.14)
+  );
 }
