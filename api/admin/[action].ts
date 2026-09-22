@@ -557,18 +557,17 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
     }
 
     const rows = await sql`
-      SELECT dokumentasi_urls, paraf_qc_url, paraf_manager_url FROM product_destructions
+      SELECT dokumentasi_urls FROM product_destructions
       WHERE business_date::text = ${date} AND shift = ${shift} AND store_id = ${store.storeId}
     `
 
     const blobUrls: string[] = []
     for (const row of rows) {
-      for (const field of [row.paraf_qc_url, row.paraf_manager_url]) {
-        if (!field) continue
-        const m = String(field).match(/[?&]blobUrl=([^&]+)/)
-        if (m) blobUrls.push(decodeURIComponent(m[1]))
-        else if (String(field).includes('http')) blobUrls.push(String(field))
-      }
+      // NOTE: paraf_qc_url / paraf_manager_url are intentionally NEVER deleted here.
+      // They always reference the personnel's SHARED signature file
+      // (personnel.signature_url), not a per-submission upload — deleting them
+      // would silently break signatures in every other PDF that references them.
+      // Only dokumentasi_urls (per-submission photos) are safe to clean up.
       if (!row.dokumentasi_urls) continue
       const urls = String(row.dokumentasi_urls).split('\n').filter(Boolean)
       for (const url of urls) {
