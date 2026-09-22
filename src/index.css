@@ -82,3 +82,59 @@
     border-color: #465fff;
   }
 }
+
+/* ---- Login upgrade: lightweight animated backdrop (transform/opacity only) ---- */
+@keyframes login-aurora {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes login-orb-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(48px, -36px) scale(1.12); }
+}
+@keyframes login-orb-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-56px, 32px) scale(1.08); }
+}
+@keyframes login-orb-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(36px, 44px) scale(1.15); }
+}
+@keyframes login-caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.login-aurora {
+  background-image: linear-gradient(
+    115deg,
+    rgb(70 95 255 / 0.16),
+    rgb(253 133 58 / 0.12),
+    rgb(50 213 131 / 0.12),
+    rgb(70 95 255 / 0.16)
+  );
+  background-size: 280% 280%;
+  animation: login-aurora 16s ease-in-out infinite;
+}
+.login-orb-a { animation: login-orb-a 11s ease-in-out infinite; }
+.login-orb-b { animation: login-orb-b 14s ease-in-out infinite; }
+.login-orb-c { animation: login-orb-c 17s ease-in-out infinite; }
+.type-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  animation: login-caret 1s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-aurora,
+  .login-orb-a,
+  .login-orb-b,
+  .login-orb-c,
+  .type-caret {
+    animation: none;
+  }
+}
