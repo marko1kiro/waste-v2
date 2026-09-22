@@ -36,7 +36,7 @@ export function ButtonLoadingSpinner() {
 
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <div className={`animate-pulse rounded-lg bg-surface-alt ${className}`} />
+    <div className={`skeleton-shimmer rounded-lg ${className}`} />
   )
 }
 
@@ -46,6 +46,37 @@ export function CardSkeleton() {
       <Skeleton className="mb-3 h-4 w-24" />
       <Skeleton className="mb-2 h-6 w-16" />
       <Skeleton className="h-3 w-32" />
+    </div>
+  )
+}
+
+export function ChartSkeleton({ className = 'h-[260px]' }: { className?: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
+      <div className="mb-3 flex items-center justify-between">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-6 w-16 rounded-full" />
+      </div>
+      <Skeleton className={`w-full ${className}`} />
+    </div>
+  )
+}
+
+export function TableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-theme-xs">
+      <div className="border-b border-border bg-surface-alt/60 px-4 py-3">
+        <Skeleton className="h-4 w-40" />
+      </div>
+      <div className="divide-y divide-border/50 px-4 py-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 py-2.5">
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

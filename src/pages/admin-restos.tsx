@@ -97,7 +97,7 @@ export default function AdminRestos() {
   const inputCls = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500'
 
   return (
-    <div className="mx-auto max-w-5xl py-2">
+    <div className="anim-enter mx-auto w-full max-w-6xl py-2">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 size={18} className="text-brand-500 dark:text-brand-400" />

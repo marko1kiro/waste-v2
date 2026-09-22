@@ -144,3 +144,68 @@
     animation: none;
   }
 }
+
+/* ---- Desktop experience: lightweight entrance + shimmer (transform/opacity only) ---- */
+@keyframes dsk-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dsk-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dsk-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* Pakai di page root / section: muncul halus dari bawah. Delay via inline style animationDelay. */
+.anim-enter {
+  animation: dsk-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-fade-in {
+  animation: dsk-fade-in 0.4s ease-out both;
+}
+
+/* Skeleton shimmer: lebih hidup dari pulse polos, tetap murah (transform saja) */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: rgb(var(--surface-alt));
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--surface)) / 0.7, transparent);
+  animation: dsk-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Hover lift khusus perangkat ber-pointer (desktop): jangan ganggu HP */
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift {
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px -12px rgb(16 24 40 / 0.18);
+  }
+  .dark .hover-lift:hover {
+    box-shadow: 0 12px 28px -12px rgb(0 0 0 / 0.5);
+  }
+  .btn-press:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-enter,
+  .anim-fade-in,
+  .skeleton-shimmer::after {
+    animation: none;
+  }
+  .skeleton-shimmer::after {
+    display: none;
+  }
+}

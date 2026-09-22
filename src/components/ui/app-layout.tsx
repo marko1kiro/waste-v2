@@ -19,7 +19,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-dvh">
       <DesktopSidebar />
 
-      <main className="lg:ml-[240px]">
+      <main className="lg:ml-[88px] xl:ml-[264px]">
         {showShiftBar && (
           <div className="px-4 pt-4">
             <ShiftStatusBar />

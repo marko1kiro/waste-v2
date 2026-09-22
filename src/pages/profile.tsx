@@ -60,7 +60,7 @@ export default function Profile() {
     try { await apiClient.fetch(`/api/admin/api-keys?id=${id}`, { method: 'DELETE' }); await loadKeys() } catch (err) { setError(err instanceof Error ? err.message : 'Gagal mencabut API key.') }
   }
 
-  return <div className="mx-auto max-w-md py-4">
+  return <div className="anim-enter mx-auto w-full max-w-2xl py-4 lg:max-w-3xl">
     <div className="mb-6 flex flex-col items-center"><div className="mb-3 h-20 w-20 overflow-hidden rounded-full border-2 border-brand-500 shadow-theme-md"><img src="/logo.webp" alt="Avatar" width="80" height="80" className="h-full w-full object-cover" /></div><h1 className="text-lg font-semibold text-text-primary">{user?.display_name || user?.username}</h1><span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-4 py-1.5 text-[11px] font-semibold uppercase text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"><span>{roleEmoji}</span>{roleLabel}</span></div>
 
     <button type="button" onClick={toggle} className="mb-4 flex w-full items-center justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-theme-xs transition hover:bg-surface-alt">

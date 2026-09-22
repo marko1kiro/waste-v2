@@ -3,7 +3,7 @@ import { ClipboardPaste, FileDown, CheckCircle2, ArrowRight, Lightbulb, AlertTri
 
 export default function Tutorial() {
   return (
-    <div className="mx-auto max-w-3xl py-2">
+    <div className="anim-enter mx-auto w-full max-w-4xl py-2">
       <div className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-theme-sm">
         <h1 className="mb-1 text-xl font-semibold text-text-primary">Tutorial Penggunaan AWAS</h1>
         <p className="text-xs leading-relaxed text-text-muted">Panduan lengkap untuk crew baru. Ikuti langkah-langkah di bawah ini dari awal sampai selesai.</p>

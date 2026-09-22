@@ -41,7 +41,7 @@ export default function AdminPanel() {
   const selectedResto = selectedStoreId !== null ? restos.find((r) => r.id === selectedStoreId) : null
 
   return (
-    <div className="mx-auto max-w-6xl py-2">
+    <div className="anim-enter mx-auto w-full max-w-7xl py-2">
       <div className="mb-5 rounded-2xl border border-border bg-surface p-4 shadow-theme-sm sm:p-5">
         <div className="flex items-start gap-3 sm:items-center">
           <div className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-warning-600 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><Shield size={22} /></div>

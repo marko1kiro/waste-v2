@@ -122,7 +122,7 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl py-2">
+    <div className="anim-enter mx-auto w-full max-w-7xl py-2">
       <ConfirmDialog open={Boolean(deleting)} title="Hapus akun store?" description={`Akun ${deleting?.username || ''} akan dihapus.`} onConfirm={deleteUser} onCancel={() => setDeleting(null)} />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
