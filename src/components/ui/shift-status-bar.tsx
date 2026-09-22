@@ -26,42 +26,48 @@ export default function ShiftStatusBar() {
   const storeCode = tenantData?.data?.store_code || ''
   const storeName = tenantData?.data?.store_name || ''
   const storeLabel = storeCode && storeName ? `${storeCode} - ${storeName}` : storeName || storeCode || ''
+  const midnightDone = data?.shifts?.MIDNIGHT?.done === true
 
   return (
-    <div className="mx-auto mb-4 max-w-2xl rounded-xl border border-border bg-surface p-3 shadow-theme-xs">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className="anim-enter mb-4 rounded-xl border border-border bg-surface px-3 py-2 shadow-theme-xs">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div className="min-w-0 flex-1 basis-40">
           <div className="truncate text-xs font-semibold text-text-primary">{storeLabel}</div>
           <div className="text-[10px] text-text-muted">{getDayNameWIB(businessDate)}, {formatDateDisplay(businessDate)}</div>
         </div>
-        <div className="shrink-0 rounded-lg border border-border bg-surface-alt px-2 py-1 text-[10px] font-semibold uppercase text-text-primary">Yo {user?.username || '-'}!</div>
-      </div>
 
-      <div className="grid grid-cols-4 gap-2">
-        {SHIFTS.map((shift) => {
-          const meta = SHIFT_META[shift]
-          const status = data?.shifts?.[shift]
-          const isDone = status?.done === true
-
-          return (
-            <div
-              key={shift}
-              className="flex flex-col items-center py-1"
-            >
-              <span className="text-sm">{meta.emoji}</span>
-              <span className="text-[9px] font-semibold uppercase text-text-muted">
-                {shift}
+        <div className="flex items-center gap-1 sm:gap-2">
+          {SHIFTS.map((shift) => {
+            const meta = SHIFT_META[shift]
+            const isDone = data?.shifts?.[shift]?.done === true
+            return (
+              <span
+                key={shift}
+                title={`${shift}: ${isDone ? 'udah di-submit' : 'belum'}`}
+                className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${
+                  isDone
+                    ? 'border-success-500/20 bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400'
+                    : 'border-border bg-surface-alt text-text-muted'
+                }`}
+              >
+                <span className="text-[11px] leading-none">{meta.emoji}</span>
+                <span className="hidden sm:inline">{shift}</span>
+                {isDone ? <CheckCircle2 size={11} /> : <Clock size={11} />}
               </span>
-              {isDone ? (
-                <CheckCircle2 size={14} className="mt-0.5 text-success-500" />
-              ) : (
-                <Clock size={14} className="mt-0.5 text-warning-500" />
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
+
+        <div className="shrink-0 rounded-lg border border-border bg-surface-alt px-2 py-1 text-[10px] font-semibold uppercase text-text-primary">
+          Yo {user?.username || '-'}!
+        </div>
       </div>
-      <p className="mt-2 text-center text-[11px] text-warning-600 dark:text-warning-400">PDF baru bisa dibuat kalo Midnight udah di-submit ya!</p>
+
+      {!midnightDone && (
+        <p className="mt-1.5 border-t border-border/60 pt-1.5 text-center text-[10px] font-medium text-warning-600 dark:text-warning-400">
+          PDF baru bisa dibuat kalo Midnight udah di-submit ya!
+        </p>
+      )}
     </div>
   )
 }
