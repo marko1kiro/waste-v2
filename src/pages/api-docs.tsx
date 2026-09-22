@@ -42,7 +42,7 @@ curl -X POST '${baseUrl}/api/upload-file' \\
 
 curl -X DELETE '${baseUrl}/api/admin/api-keys?id=12' \\
   -H 'Authorization: Bearer <JWT>'`}</CodeBlock><p><code>expiry</code>: <code>7</code>, <code>30</code>, <code>90</code>, <code>never</code>. List with <code>GET /api/admin/api-keys</code>. Reveal with <code>POST ?operation=reveal</code> plus <code>{'{"id":12,"password":"..."}'}</code>.</p></Section>
-    <Section id="upload-file" title="Upload file first"><p>Upload images/documents before submission. Use returned <code>proxyUrl</code> in <code>dokumentasiUrls</code>; never submit the private blob URL.</p><CodeBlock>{`POST /api/upload-file
+    <Section id="upload-file" title="Upload file first"><p>Upload images/documents before submission. Use returned <code>proxyUrl</code> in <code>dokumentasiUrls</code>; never submit a direct storage URL.</p><CodeBlock>{`POST /api/upload-file
 {"filename":"waste.jpg","contentType":"image/jpeg","base64":"raw Base64 or Data URL","folder":"waste-docs"}
 
 200: {"success":true,"blobUrl":"https://...","proxyUrl":"/api/signatures?blobUrl=..."}`}</CodeBlock></Section>

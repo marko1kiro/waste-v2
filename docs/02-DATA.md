@@ -151,5 +151,5 @@ Nilai bebas (string), default suggestion:
 ### Rules
 - `name` harus UPPERCASE, digunakan sebagai key di dropdown.
 - `full_name` bebas format, untuk display.
-- File signature disimpan di Vercel Blob, URL-nya disimpan di DB.
+- File signature disimpan di Cloudflare R2, key ref-nya disimpan di DB.
 - Signature image harus di-upload via settings sebelum bisa dipakai.

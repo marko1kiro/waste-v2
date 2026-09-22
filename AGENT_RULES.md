@@ -60,9 +60,7 @@ Baca file docs **URUT** sesuai nomor, jangan lompat-lompat:
 - **Google Sheets tidak digunakan** (latency tinggi).
 
 ### 3. Storage Foto (Private via Proxy)
-- Foto dokumentasi & paraf di-upload ke **Cloudflare R2** (baru) atau Vercel Blob (legacy) — keduanya private.
 - Upload baru ke R2 bersifat **private-by-default**: tidak ada public URL yang diekspos; akses hanya via proxy terautentikasi `/api/signatures?blobUrl=<key>` (server fetch pakai kredensial R2, respons `Cache-Control: private` + `X-Content-Type-Options: nosniff`).
-- Vercel Blob (legacy) tetap private dan di-proxy via `/api/signatures?blobUrl=<url>`.
 - Proxy `/api/signatures` memvalidasi bahwa blob direferensikan di DB **dan** dalam scope `store_id` pemanggil (super_admin dikecualikan).
 - **Catatan migrasi:** URL R2 publik lama (dibuat sebelum private-by-default) masih bisa diakses langsung sampai bucket R2 diset private secara manual — jangan sebarkan URL mentah tersebut.
 
@@ -101,7 +99,7 @@ Baca file docs **URUT** sesuai nomor, jangan lompat-lompat:
 ### Backend (wajib)
 - Vercel Serverless Functions (Node.js)
 - Neon PostgreSQL (`@neondatabase/serverless`)
-- Vercel Blob (`@vercel/blob`)
+- Cloudflare R2 (S3-compatible, via `aws4fetch`)
 - JWT (HMAC-SHA256, built-in crypto)
 - scrypt (password hashing, built-in crypto)
 
@@ -211,7 +209,6 @@ waste-v2/
 ```env
 DATABASE_URL=postgresql://user:pass@host/dbname?sslmode=require
 JWT_SECRET=your-super-secret-min-32-char
-BLOB_READ_WRITE_TOKEN=...
 PUBLIC_URL=https://your-domain.com
 ```
 

@@ -62,7 +62,7 @@
 |-----------|--------|
 | Vercel Serverless Functions | API endpoints (`/api/*`) |
 | Neon PostgreSQL (serverless) | Database (single-tenant) |
-| Vercel Blob | File storage (foto dokumentasi) |
+| Cloudflare R2 | File storage (foto dokumentasi) |
 | JWT (HMAC-SHA256) | Authentication |
 | Node.js crypto (scrypt) | Password hashing |
 
@@ -71,7 +71,7 @@
 |---------|--------|
 | Vercel | Hosting & deploy |
 | Neon | PostgreSQL serverless (primary data store) |
-| Vercel Blob | Image/photo storage |
+| Cloudflare R2 | Image/photo storage |
 
 ---
 
@@ -89,10 +89,10 @@
 - Google Sheets **tidak digunakan** (alasan: latency tinggi).
 - Database menyimpan: users, personnel, config, dan seluruh data waste.
 
-### ADR-003: Blob untuk Foto
-- Foto dokumentasi diupload ke **Vercel Blob** (private).
-- Setiap upload menghasilkan **private URL**.
-- Private URL di-wrap dengan **proxy endpoint** (`/api/signatures?blobUrl=...`)
+### ADR-003: R2 untuk Foto
+- Foto dokumentasi diupload ke **Cloudflare R2** (private).
+- Setiap upload menghasilkan **private key ref**.
+- Key ref di-wrap dengan **proxy endpoint** (`/api/signatures?blobUrl=...`)
   agar aman diakses dari frontend.
 - URL proxy disimpan di Google Sheets sebagai `=IMAGE("...")`.
 
@@ -206,8 +206,6 @@ DATABASE_URL=postgresql://user:pass@host/dbname?sslmode=require
 # 🔐 Auth
 JWT_SECRET=your-super-secret-min-32-char
 
-# ☁️ Vercel Blob (optional — auto-configured on Vercel)
-BLOB_READ_WRITE_TOKEN=...
 
 # 📄 Google Sheets (optional export)
 GOOGLE_SPREADSHEET_ID=your_spreadsheet_id

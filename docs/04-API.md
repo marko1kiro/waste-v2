@@ -54,7 +54,7 @@ Login user.
 
 ### POST `/api/submit-waste`
 Menerima data waste dan foto dokumentasi.
-1. Upload foto ke Vercel Blob → dapat URL proxy
+1. Upload foto ke Cloudflare R2 → dapat URL proxy
 2. Simpan data waste ke tabel `product_destructions` (Neon PostgreSQL)
 3. Update shift status di tabel `daily_records`
 4. (Opsional) Kirim WhatsApp notif
@@ -167,7 +167,7 @@ Mengambil katalog item per station untuk store pemanggil.
 ```
 
 ### `?action=list-blob-pdfs`
-Daftar PDF backup per bulan (R2 didahulukan, fallback Vercel Blob legacy).
+Daftar PDF backup per bulan (Cloudflare R2).
 
 **Query Params:**
 | Param | Tipe | Required | Deskripsi |

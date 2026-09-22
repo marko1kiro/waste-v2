@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { list } from '@vercel/blob'
 import { getSQL, authenticateRequest, shiftStatusQuerySchema, resolveStoreContext, getRequestedStoreId, createBlobAccessToken } from '../server/lib.js'
 import { listR2Pdfs } from '../server/r2.js'
 
@@ -130,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      // 1. Fetch from Cloudflare R2
+      // Fetch PDF backups from Cloudflare R2.
       const r2Pdfs = await listR2Pdfs(storeCode, month)
       // Serve R2 PDF downloads through the authenticated /api/signatures proxy
       // with short-lived signed tokens instead of direct public R2 URLs, so the
@@ -143,39 +142,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return { ...pdf, url: proxyUrl, downloadUrl: proxyUrl }
       })
 
-      // 2. Fetch from legacy Vercel Blob (fallback for old CKRBUL records)
-      let blobPdfs: typeof r2Pdfs = []
-      try {
-        const result = await list({
-          prefix: 'pdf-backup/',
-          limit: 100,
-          mode: 'expanded',
-        })
-
-        blobPdfs = (result.blobs || [])
-          .filter((blob) => {
-            const pathname = blob.pathname || ''
-            if (!pathname.startsWith('pdf-backup/') || !pathname.endsWith('.pdf')) return false
-            const uploadedAt = blob.uploadedAt ? new Date(blob.uploadedAt) : null
-            if (!uploadedAt) return false
-            const ym = `${uploadedAt.getFullYear()}-${String(uploadedAt.getMonth() + 1).padStart(2, '0')}`
-            return ym === month
-          })
-          .map((blob) => ({
-            filename: blob.pathname?.split('/').pop() || '',
-            url: blob.url,
-            downloadUrl: blob.downloadUrl,
-            size: blob.size,
-            uploadedAt: blob.uploadedAt ? new Date(blob.uploadedAt).toISOString() : new Date().toISOString(),
-          }))
-      } catch (blobErr) {
-        console.warn('[list-blob-pdfs] Legacy Blob fetch skipped:', blobErr)
-      }
-
-      // 3. Merge without filename duplicates (R2 takes precedence)
+      // Merge without filename duplicates (newest first)
       const seen = new Set<string>()
       const merged = []
-      for (const pdf of [...proxiedR2Pdfs, ...blobPdfs]) {
+      for (const pdf of proxiedR2Pdfs) {
         if (!seen.has(pdf.filename)) {
           seen.add(pdf.filename)
           merged.push(pdf)

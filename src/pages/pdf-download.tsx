@@ -164,10 +164,9 @@ export default function PdfDownload() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       return response.blob()
     }
-    const isR2 = url.includes('images.gacoanku.my.id') || (!url.includes('blob.vercel-storage.com') && url.startsWith('https://'))
-    const fetchUrl = isR2 ? url : `/api/signatures?blobUrl=${encodeURIComponent(url)}`
-    const headers: Record<string, string> = isR2 ? {} : { Authorization: `Bearer ${apiClient.getToken() || ''}` }
-    const response = await fetchPdfResponse(fetchUrl, headers)
+    // R2 is private — everything else goes through the authenticated proxy.
+    const fetchUrl = `/api/signatures?blobUrl=${encodeURIComponent(url)}`
+    const response = await fetchPdfResponse(fetchUrl, { Authorization: `Bearer ${apiClient.getToken() || ''}` })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     return response.blob()
   }
