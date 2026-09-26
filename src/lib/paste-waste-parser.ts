@@ -2,6 +2,11 @@ export const PASTE_STATIONS = ['NOODLE', 'DIMSUM', 'BAR', 'PRODUKSI'] as const
 export const PASTE_SHIFTS = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT'] as const
 export const PASTE_UNITS = ['PORSI', 'PCS', 'GRAM', 'PACK'] as const
 
+// Typo umum yang otomatis dibetulkan (dengan warning) — jangan biarkan data nyasar shift.
+export const PASTE_SHIFT_ALIASES: Record<string, (typeof PASTE_SHIFTS)[number]> = {
+  MIDLE: 'MIDDLE',
+}
+
 export type PasteStation = (typeof PASTE_STATIONS)[number]
 export type PasteShift = (typeof PASTE_SHIFTS)[number]
 export type PasteUnit = (typeof PASTE_UNITS)[number]
@@ -96,9 +101,15 @@ export function parsePasteWaste(rawText: string): PasteWasteParseResult {
 
     const titleMatch = value.match(/^\*?\s*WASTE\s+(.+?)\s*\*?$/i)
     if (titleMatch) {
-      const parsedShift = findExact(PASTE_SHIFTS, titleMatch[1].replace(/\*/g, ''))
+      const rawShift = titleMatch[1].replace(/\*/g, '')
+      const normalizedShift = normalizeSpace(rawShift).toUpperCase()
+      const aliasedShift = PASTE_SHIFT_ALIASES[normalizedShift] ?? null
+      const parsedShift = findExact(PASTE_SHIFTS, rawShift) ?? aliasedShift
       if (!parsedShift) result.errors.push({ line, message: `Shift "${titleMatch[1]}" tidak valid.` })
-      else if (result.shift) result.warnings.push({ line, message: 'Judul WASTE duplikat; judul terakhir dipakai.' })
+      else {
+        if (aliasedShift) result.warnings.push({ line, message: `Shift "${rawShift}" otomatis dibetulkan menjadi ${aliasedShift}.` })
+        else if (result.shift) result.warnings.push({ line, message: 'Judul WASTE duplikat; judul terakhir dipakai.' })
+      }
       if (parsedShift) result.shift = parsedShift
       continue
     }

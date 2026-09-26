@@ -453,7 +453,13 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
         if (mountedRef.current) {
           setQueueItems(queued)
           const current = queued.find((queuedItem) => queuedItem.id === item.id)
-          if (!current || current.state === 'completed') { setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`); setStep('success'); toast.success('Mantap', 'Data waste udah kesimpen.') }
+          if (!current || current.state === 'completed') {
+            // Data sudah terkirim: hapus draft lokal SEKARANG juga (tanpa nunggu klik "Shift Baru").
+            // Penghapusan revision-guarded di syncQueue sering gagal karena counter revision ikut
+            // naik tiap klik (markDirty), sehingga draft basi bisa kepulihkan di sesi berikutnya.
+            if (user) await deleteDraft(user.username, form).catch(() => undefined)
+            setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`); setStep('success'); toast.success('Mantap', 'Data waste udah kesimpen.')
+          }
           else toast.info('Data diantrekan', current.lastError || 'Menunggu sinkronisasi.')
         }
         return
