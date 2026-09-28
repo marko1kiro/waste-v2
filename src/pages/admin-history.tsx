@@ -37,8 +37,9 @@ function shiftColor(shift: string) {
 export default function AdminHistory() {
   const [date, setDate] = useState(getBusinessDateWIB())
   const [confirmShift, setConfirmShift] = useState<string | null>(null)
-  const [confirmChange, setConfirmChange] = useState<{ from: string; to: string } | null>(null)
+  const [confirmChange, setConfirmChange] = useState<{ from: string; to: string; toDate: string } | null>(null)
   const [shiftTargets, setShiftTargets] = useState<Record<string, string>>({})
+  const [dateTargets, setDateTargets] = useState<Record<string, string>>({})
   const qc = useQueryClient()
 
   const { data, isLoading, refetch } = useQuery<HistoryResponse>({
@@ -63,18 +64,19 @@ export default function AdminHistory() {
   })
 
   const changeMutation = useMutation({
-    mutationFn: ({ from, to }: { from: string; to: string }) =>
-      apiClient.fetch(withStoreId(`/api/admin/history?date=${date}&from=${from}&to=${to}`, getAdminStoreId()), { method: 'PUT' }),
-    onSuccess: (_res, { from, to }) => {
-      toast.success('Shift diganti', `${from} → ${to} tanggal ${date}`)
+    mutationFn: ({ from, to, toDate }: { from: string; to: string; toDate: string }) =>
+      apiClient.fetch(withStoreId(`/api/admin/history?date=${date}&toDate=${toDate}&from=${from}&to=${to}`, getAdminStoreId()), { method: 'PUT' }),
+    onSuccess: (_res, { from, to, toDate }) => {
+      toast.success('Data dipindah', `${from} ${date} → ${to} ${toDate}`)
       setShiftTargets({})
-      qc.invalidateQueries({ queryKey: ['admin-history', date] })
+      setDateTargets({})
+      qc.invalidateQueries({ queryKey: ['admin-history'] })
       qc.invalidateQueries({ queryKey: ['shift-status'] })
       qc.invalidateQueries({ queryKey: ['dashboard-data'] })
       refetch()
     },
     onError: (err) => {
-      toast.error('Gagal ganti shift', err instanceof Error ? err.message : 'Unknown error')
+      toast.error('Gagal pindahin data', err instanceof Error ? err.message : 'Unknown error')
     },
   })
 
@@ -120,7 +122,10 @@ export default function AdminHistory() {
 
       {!isLoading && records.length > 0 && (
         <div className="space-y-3">
-          {records.map((r) => (
+          {records.map((r) => {
+            const toDate = dateTargets[r.shift] || date
+            const sameDate = toDate === date
+            return (
             <div key={r.shift} className="rounded-xl border border-border bg-surface p-4 shadow-theme-xs">
               <div className="mb-3 flex items-center justify-between">
                 <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${shiftColor(r.shift)}`}>{r.shift}</span>
@@ -134,26 +139,35 @@ export default function AdminHistory() {
                   Hapus
                 </button>
               </div>
-              <div className="mb-3 flex items-center gap-2">
-                <select
-                  value={shiftTargets[r.shift] || ''}
-                  onChange={(e) => setShiftTargets((prev) => ({ ...prev, [r.shift]: e.target.value }))}
-                  className="flex-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-text-primary"
-                >
-                  <option value="">Pindah ke...</option>
-                  {SHIFT_ORDER.filter((s) => s !== r.shift && !records.some((rec) => rec.shift === s)).map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!shiftTargets[r.shift] || changeMutation.isPending}
-                  onClick={() => shiftTargets[r.shift] && setConfirmChange({ from: r.shift, to: shiftTargets[r.shift] })}
-                  className="flex items-center gap-1.5 rounded-lg border-2 border-blue-400/30 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-400 transition hover:border-blue-400 hover:bg-blue-400/20 disabled:opacity-30"
-                >
-                  <ArrowRightLeft size={12} />
-                  Ganti Shift
-                </button>
+              <div className="mb-3 space-y-2">
+                <label className="block text-[10px] font-semibold uppercase text-text-muted">Pindah ke tanggal & shift</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setDateTargets((prev) => ({ ...prev, [r.shift]: e.target.value }))}
+                    className="min-w-[140px] flex-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-text-primary"
+                  />
+                  <select
+                    value={shiftTargets[r.shift] || ''}
+                    onChange={(e) => setShiftTargets((prev) => ({ ...prev, [r.shift]: e.target.value }))}
+                    className="min-w-[120px] flex-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-text-primary"
+                  >
+                    <option value="">Pindah ke...</option>
+                    {SHIFT_ORDER.filter((s) => (s !== r.shift || !sameDate) && (!sameDate || !records.some((rec) => rec.shift === s))).map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!shiftTargets[r.shift] || changeMutation.isPending}
+                    onClick={() => shiftTargets[r.shift] && setConfirmChange({ from: r.shift, to: shiftTargets[r.shift], toDate })}
+                    className="flex items-center gap-1.5 rounded-lg border-2 border-blue-400/30 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-400 transition hover:border-blue-400 hover:bg-blue-400/20 disabled:opacity-30"
+                  >
+                    <ArrowRightLeft size={12} />
+                    Ganti Shift
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-text-muted">
                 <div>
@@ -176,7 +190,8 @@ export default function AdminHistory() {
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -195,7 +210,7 @@ export default function AdminHistory() {
       <ConfirmDialog
         open={!!confirmChange}
         title="Ganti Shift"
-        description={`Yakin mau pindahin semua data dari shift ${confirmChange?.from} ke ${confirmChange?.to} tanggal ${date}?`}
+        description={confirmChange ? `Yakin mau pindahin semua data dari ${confirmChange.from} tanggal ${date} ke ${confirmChange.to} tanggal ${confirmChange.toDate}?` : ''}
         confirmLabel="Gas Pindah"
         onConfirm={() => {
           if (confirmChange) changeMutation.mutate(confirmChange)

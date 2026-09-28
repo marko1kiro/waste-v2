@@ -517,23 +517,28 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
   }
 
   if (req.method === 'PUT') {
-    const { date, from, to } = req.query as Record<string, string | undefined>
+    const { date, from, to, toDate } = req.query as Record<string, string | undefined>
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({ error: 'Format date harus YYYY-MM-DD' })
+    }
+    // Tanggal tujuan: default = tanggal asal (perilaku lama: cuma ganti shift)
+    const targetDate = toDate || date
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      return res.status(400).json({ error: 'Format toDate harus YYYY-MM-DD' })
     }
     const validShifts = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT']
     if (!from || !to || !validShifts.includes(from) || !validShifts.includes(to)) {
       return res.status(400).json({ error: 'Shift from/to harus OPENING, MIDDLE, CLOSING, atau MIDNIGHT' })
     }
-    if (from === to) {
-      return res.status(400).json({ error: 'Shift asal dan tujuan ga boleh sama' })
+    if (from === to && targetDate === date) {
+      return res.status(400).json({ error: 'Shift dan tanggal tujuan sama — ga ada yang dipindah.' })
     }
 
-    // Advisory lock key dibangun di JS sebagai string utuh — JANGAN concat $5 (integer)
+    // Advisory lock key dibangun di JS sebagai string utuh — JANGAN concat integer
     // di dalam SQL (inkonsistensi inferensi tipe parameter bikin Postgres 500).
-    const lockKey = `${date}:${from}:${to}:${store.storeId}`
-    const moved = await sql(`WITH guard AS (SELECT pg_advisory_xact_lock(hashtext($6))), source AS (SELECT station FROM waste_submission_locks, guard WHERE business_date = $1::date AND shift = $2 AND store_id = $5), conflict AS (SELECT 1 FROM product_destructions WHERE business_date = $1::date AND shift = $3 AND store_id = $5 LIMIT 1), moved_locks AS (UPDATE waste_submission_locks SET shift = $3 WHERE business_date = $1::date AND shift = $2 AND store_id = $5 AND NOT EXISTS (SELECT 1 FROM conflict) RETURNING station), moved_products AS (UPDATE product_destructions SET shift = $3 WHERE business_date = $1::date AND shift = $2 AND store_id = $5 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), reset_daily AS (UPDATE daily_records SET done = FALSE WHERE business_date = $1::date AND shift = $2 AND store_id = $5 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), set_daily AS (INSERT INTO daily_records (store_id, business_date, shift, done, submitted_by, submitted_at) SELECT $5, $1::date, $3, TRUE, $4, NOW() WHERE EXISTS (SELECT 1 FROM moved_locks) ON CONFLICT (store_id, business_date, shift) DO UPDATE SET done = TRUE, submitted_by = EXCLUDED.submitted_by, submitted_at = NOW() RETURNING id) SELECT (SELECT COUNT(*)::int FROM moved_products) AS count, EXISTS (SELECT 1 FROM conflict) AS conflict`, [date, from, to, payload.sub, store.storeId, lockKey])
-    if (moved[0].conflict) return res.status(409).json({ error: `Shift ${to} tanggal ${date} udah ada datanya. Hapus dulu kalo mau ganti.` })
+    const lockKey = `${date}:${targetDate}:${from}:${to}:${store.storeId}`
+    const moved = await sql(`WITH guard AS (SELECT pg_advisory_xact_lock(hashtext($7))), source AS (SELECT station FROM waste_submission_locks, guard WHERE business_date = $1::date AND shift = $2 AND store_id = $6), conflict AS (SELECT 1 FROM product_destructions WHERE business_date = $4::date AND shift = $3 AND store_id = $6 UNION SELECT 1 FROM waste_submission_locks WHERE business_date = $4::date AND shift = $3 AND store_id = $6 LIMIT 1), moved_locks AS (UPDATE waste_submission_locks SET business_date = $4::date, shift = $3 WHERE business_date = $1::date AND shift = $2 AND store_id = $6 AND NOT EXISTS (SELECT 1 FROM conflict) RETURNING station), moved_products AS (UPDATE product_destructions SET business_date = $4::date, shift = $3 WHERE business_date = $1::date AND shift = $2 AND store_id = $6 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), reset_daily AS (UPDATE daily_records SET done = FALSE WHERE business_date = $1::date AND shift = $2 AND store_id = $6 AND EXISTS (SELECT 1 FROM moved_locks) RETURNING id), set_daily AS (INSERT INTO daily_records (store_id, business_date, shift, done, submitted_by, submitted_at) SELECT $6, $4::date, $3, TRUE, $5, NOW() WHERE EXISTS (SELECT 1 FROM moved_locks) ON CONFLICT (store_id, business_date, shift) DO UPDATE SET done = TRUE, submitted_by = EXCLUDED.submitted_by, submitted_at = NOW() RETURNING id) SELECT (SELECT COUNT(*)::int FROM moved_products) AS count, EXISTS (SELECT 1 FROM conflict) AS conflict`, [date, from, to, targetDate, payload.sub, store.storeId, lockKey])
+    if (moved[0].conflict) return res.status(409).json({ error: `Shift ${to} tanggal ${targetDate} udah ada datanya. Hapus dulu kalo mau pindah ke sana.` })
     const updated = [{ count: moved[0].count }]
 
     const ip = getClientIP(req.headers as Record<string, string | string[] | undefined>)
@@ -543,11 +548,11 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
       username: payload.sub,
       ipAddress: ip,
       userAgent: req.headers['user-agent'] || '',
-      details: { date, from, to, rowsAffected: updated.length },
+      details: { date, from, to, toDate: targetDate, rowsAffected: updated.length },
       status: 'success',
     })
 
-    return res.status(200).json({ success: true, message: `Data shift ${from} berhasil dipindah ke ${to}.` })
+    return res.status(200).json({ success: true, message: `Data shift ${from} tanggal ${date} berhasil dipindah ke ${to} tanggal ${targetDate}.` })
   }
 
   if (req.method === 'DELETE') {
