@@ -22,7 +22,7 @@ interface HistoryResponse {
   data: ShiftRecord[]
 }
 
-const SHIFT_ORDER = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT']
+const SHIFT_ORDER = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING']
 
 function shiftColor(shift: string) {
   switch (shift) {

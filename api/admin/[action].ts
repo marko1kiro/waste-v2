@@ -506,10 +506,10 @@ async function handleHistory(req: VercelRequest, res: VercelResponse, payload: a
       GROUP BY shift
       ORDER BY
         CASE shift
-          WHEN 'OPENING' THEN 1
-          WHEN 'MIDDLE' THEN 2
-          WHEN 'CLOSING' THEN 3
-          WHEN 'MIDNIGHT' THEN 4
+          WHEN 'MIDNIGHT' THEN 1
+          WHEN 'OPENING' THEN 2
+          WHEN 'MIDDLE' THEN 3
+          WHEN 'CLOSING' THEN 4
         END
     `
 

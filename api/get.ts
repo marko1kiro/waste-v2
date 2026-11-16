@@ -65,10 +65,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           WHERE business_date::text = ${date}
           ORDER BY
             CASE shift
-              WHEN 'OPENING' THEN 1
-              WHEN 'MIDDLE' THEN 2
-              WHEN 'CLOSING' THEN 3
-              WHEN 'MIDNIGHT' THEN 4
+              WHEN 'MIDNIGHT' THEN 1
+              WHEN 'OPENING' THEN 2
+              WHEN 'MIDDLE' THEN 3
+              WHEN 'CLOSING' THEN 4
             END
         `
         : await sql`
@@ -77,10 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           WHERE business_date::text = ${date} AND store_id = ${storeId}
           ORDER BY
             CASE shift
-              WHEN 'OPENING' THEN 1
-              WHEN 'MIDDLE' THEN 2
-              WHEN 'CLOSING' THEN 3
-              WHEN 'MIDNIGHT' THEN 4
+              WHEN 'MIDNIGHT' THEN 1
+              WHEN 'OPENING' THEN 2
+              WHEN 'MIDDLE' THEN 3
+              WHEN 'CLOSING' THEN 4
             END
         `
 
@@ -101,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      const pdfUnlocked = shifts.MIDNIGHT.done === true
+      const pdfUnlocked = shifts.MIDDLE.done === true
 
       return res.status(200).json({
         success: true,

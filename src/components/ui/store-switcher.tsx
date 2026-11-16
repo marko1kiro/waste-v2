@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { getAdminStoreId, setAdminStoreId } from '@/lib/admin-store'
@@ -17,8 +18,24 @@ export function StoreSwitcher({ invalidateKeys }: { invalidateKeys?: readonly st
     queryFn: () => apiClient.fetch('/api/admin/stores'),
     staleTime: 5 * 60_000,
   })
-  const stores = (data?.data || []).filter((s) => s.status === 'active')
+  const stores = useMemo(() => (data?.data || []).filter((s) => s.status === 'active'), [data])
   const selected = getAdminStoreId() ?? stores[0]?.id ?? null
+
+  // Opsi A: kalau belum ada resto tersimpan, simpan resto pertama sebagai default
+  // begitu daftar resto kebuka — supaya yang ditampilkan dropdown dan yang dikirim
+  // ke API selalu sepakat sejak load pertama. Tanpa ini, halaman admin request
+  // tanpa store_id -> API 400 -> halaman tampil kosong ("Ga ada data").
+  // Setelah tersimpan, query halaman di-invalidate supaya langsung refetch pakai resto itu.
+  useEffect(() => {
+    if (getAdminStoreId() === null && stores.length > 0) {
+      setAdminStoreId(stores[0].id)
+      if (invalidateKeys) {
+        for (const key of invalidateKeys) qc.invalidateQueries({ queryKey: key })
+      } else {
+        qc.invalidateQueries()
+      }
+    }
+  }, [stores, qc, invalidateKeys])
 
   function onChange(value: string) {
     setAdminStoreId(value ? Number(value) : (stores[0]?.id ?? null))

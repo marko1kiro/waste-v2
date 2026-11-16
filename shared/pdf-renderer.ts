@@ -30,7 +30,7 @@ export interface DailyPdfInput {
   assetLinks: Map<string, string>
 }
 
-const shifts = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT']
+const shifts = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING']
 const formatDate = (date: string) => new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date(`${date}T00:00:00Z`))
 const dayName = (date: string) => new Intl.DateTimeFormat('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' }).format(new Date(`${date}T00:00:00Z`))
 
@@ -139,7 +139,7 @@ export function renderDailyPdf(input: DailyPdfInput): Uint8Array {
     })
     startY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
   }
-  const lastItem = input.grouped.MIDNIGHT?.at(-1) || allItems.at(-1)
+  const lastItem = input.grouped.CLOSING?.at(-1) || allItems.at(-1)
   const signature = lastItem?.parafQC ? input.assets.get(lastItem.parafQC) : undefined
   const ttdX = pageWidth - margin - 55
   const ttdY = startY + 6

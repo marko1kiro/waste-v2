@@ -1,11 +1,11 @@
 /**
  * WIB Timezone Utilities
  * Semua logic pake WIB (Asia/Jakarta, GMT+7)
- * Business date cutoff: 05:00 WIB
+ * Business date cutoff: 00:00 WIB — 1 hari kerja = (MIDNIGHT, OPENING, MIDDLE, CLOSING).
+ * Shift TIDAK ditebak dari jam: operator memilih shift sendiri (manual / paste format).
  */
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000 // +7 hours in ms
-const BUSINESS_CUTOFF_HOUR = 5 // 05:00 WIB
 
 /**
  * Mendapatkan waktu WIB saat ini sebagai Date object
@@ -17,31 +17,12 @@ export function getNowWIB(): Date {
 
 /**
  * Mendapatkan business date (YYYY-MM-DD) berdasarkan waktu WIB sekarang.
- * Sebelum 05:00 WIB → masih hari sebelumnya (MIDNIGHT shift).
+ * Pergantian hari jam 00:00 WIB: tanggal kalender WIB = business date.
+ * Berlaku mulai 17 Nov 2026; data lama (cutoff 05:00) dibiarkan apa adanya.
  */
 export function getBusinessDateWIB(date?: Date): string {
   const wib = date ? toWIB(date) : getNowWIB()
-  const hour = wib.getHours()
-
-  // Sebelum 05:00 WIB → hari sebelumnya
-  if (hour < BUSINESS_CUTOFF_HOUR) {
-    wib.setDate(wib.getDate() - 1)
-  }
-
   return formatDateISO(wib)
-}
-
-/**
- * Mendapatkan shift saat ini berdasarkan jam WIB.
- */
-export function getCurrentShiftWIB(date?: Date): 'OPENING' | 'MIDDLE' | 'CLOSING' | 'MIDNIGHT' {
-  const wib = date ? toWIB(date) : getNowWIB()
-  const hour = wib.getHours()
-
-  if (hour >= 5 && hour < 12) return 'OPENING'
-  if (hour >= 12 && hour < 17) return 'MIDDLE'
-  if (hour >= 17 && hour <= 23) return 'CLOSING'
-  return 'MIDNIGHT' // 00:00 - 04:59
 }
 
 /**
@@ -91,13 +72,13 @@ export function formatTimeWIB(date?: Date): string {
   return `${h}:${m} WIB`
 }
 
-/** Shift info for display */
+/** Shift info for display — `time` = jam kerja operator (referensi saja, bukan range validasi) */
 export const SHIFT_META = {
-  OPENING: { label: 'Opening', emoji: '\u{1F305}', time: '05:00 – 11:59' },
-  MIDDLE: { label: 'Middle', emoji: '\u{2600}\u{FE0F}', time: '12:00 – 16:59' },
-  CLOSING: { label: 'Closing', emoji: '\u{1F306}', time: '17:00 – 23:59' },
-  MIDNIGHT: { label: 'Midnight', emoji: '\u{1F319}', time: '00:00 – 04:59' },
+  MIDNIGHT: { label: 'Midnight', emoji: '\u{1F319}', time: '20:00 – 05:50' },
+  OPENING: { label: 'Opening', emoji: '\u{1F305}', time: '06:00 – 11:00' },
+  MIDDLE: { label: 'Middle', emoji: '\u{2600}\u{FE0F}', time: '12:00 – 23:00' },
+  CLOSING: { label: 'Closing', emoji: '\u{1F306}', time: '16:00 – 01:00' },
 } as const
 
 export type ShiftName = keyof typeof SHIFT_META
-export const SHIFTS: ShiftName[] = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT']
+export const SHIFTS: ShiftName[] = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING']

@@ -12,7 +12,7 @@ export type LoginInput = z.infer<typeof loginSchema>
 export const STATIONS = ['NOODLE', 'DIMSUM', 'BAR', 'PRODUKSI'] as const
 export type Station = (typeof STATIONS)[number]
 
-export const SHIFTS = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT'] as const
+export const SHIFTS = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING'] as const
 export type Shift = (typeof SHIFTS)[number]
 
 export const UNITS = ['PORSI', 'PCS', 'GRAM', 'PACK'] as const

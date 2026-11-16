@@ -144,8 +144,8 @@ export function buildR2PdfKey(storeCode: string, filename: string, date?: string
   return `${safeCode}/${yearMonth}/pdf-backup/${filename}`
 }
 
-/** Check if a PDF exists in R2. Returns public URL if found, null otherwise. */
-export async function findR2Pdf(storeCode: string, filename: string, date?: string): Promise<{ key: string; url: string } | null> {
+/** Check if a PDF exists in R2. Returns public URL + Last-Modified if found, null otherwise. */
+export async function findR2Pdf(storeCode: string, filename: string, date?: string): Promise<{ key: string; url: string; lastModified: string | null } | null> {
   if (!R2_BUCKET || !R2_PUBLIC_DOMAIN) return null
   const key = buildR2PdfKey(storeCode, filename, date)
   const client = getR2Client()
@@ -153,7 +153,7 @@ export async function findR2Pdf(storeCode: string, filename: string, date?: stri
 
   const response = await client.fetch(url, { method: 'HEAD' })
   if (response.status === 200) {
-    return { key, url: getPublicUrl(key) }
+    return { key, url: getPublicUrl(key), lastModified: response.headers.get('last-modified') }
   }
   return null
 }

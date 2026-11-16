@@ -30,7 +30,7 @@ export default function Tutorial() {
 
         <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-background">
           <pre className="p-3 text-[11px] leading-relaxed text-text-primary">
-{`*WASTE (OPENING/MIDDLE/CLOSING/MIDNIGHT)*
+{`*WASTE (MIDNIGHT/OPENING/MIDDLE/CLOSING)*
 06-09-2026
 QC : NAMA LENGKAP
 MANAGER : NAMA MANAGER
@@ -79,7 +79,7 @@ KODE LOT : 06092026
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-            <span><strong>Shift</strong> ditulis di judul: OPENING, MIDDLE, CLOSING, atau MIDNIGHT</span>
+            <span><strong>Shift</strong> ditulis di judul: MIDNIGHT, OPENING, MIDDLE, atau CLOSING</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />

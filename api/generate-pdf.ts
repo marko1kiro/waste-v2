@@ -133,14 +133,14 @@ function streamR2Pdf(res: VercelResponse, filename: string, response: Response) 
 }
 
 async function claimDriveGeneration(date: string, storeId: number): Promise<boolean> {
-  // daily_records is the source of truth for MIDNIGHT completion. Its existing PDF
+  // daily_records is the source of truth for MIDDLE completion. Its existing PDF
   // fields double as a short server-side lease, so simultaneous functions do not upload duplicates.
   const rows = await getSQL()`
     UPDATE daily_records
     SET pdf_generated = TRUE, pdf_generated_at = NOW()
     WHERE business_date::text = ${date}
       AND store_id = ${storeId}
-      AND shift = 'MIDNIGHT'
+      AND shift = 'MIDDLE'
       AND done = TRUE
       AND (pdf_generated = FALSE OR pdf_generated_at IS NULL OR pdf_generated_at < NOW() - INTERVAL '2 minutes')
     RETURNING id
@@ -152,7 +152,7 @@ async function releaseDriveGenerationClaim(date: string, storeId: number): Promi
   await getSQL()`
     UPDATE daily_records
     SET pdf_generated = FALSE, pdf_generated_at = NULL
-    WHERE business_date::text = ${date} AND store_id = ${storeId} AND shift = 'MIDNIGHT' AND done = TRUE
+    WHERE business_date::text = ${date} AND store_id = ${storeId} AND shift = 'MIDDLE' AND done = TRUE
   `
 }
 
@@ -160,7 +160,7 @@ async function markDriveGenerationComplete(date: string, storeId: number): Promi
   await getSQL()`
     UPDATE daily_records
     SET pdf_generated = TRUE, pdf_generated_at = NOW()
-    WHERE business_date::text = ${date} AND store_id = ${storeId} AND shift = 'MIDNIGHT' AND done = TRUE
+    WHERE business_date::text = ${date} AND store_id = ${storeId} AND shift = 'MIDDLE' AND done = TRUE
   `
 }
 
@@ -182,7 +182,7 @@ function driveFailureMessage(error: unknown): string {
   if (isDriveError(error) && error.kind === 'configuration') {
     return 'Google Drive backup belum dikonfigurasi. Hubungi administrator untuk melengkapi kredensial Google Drive.'
   }
-  return 'Google Drive backup wajib untuk PDF dengan shift MIDNIGHT selesai, tetapi Drive sedang tidak tersedia. Coba lagi beberapa saat atau hubungi administrator.'
+  return 'Backup cloud wajib untuk PDF dengan shift MIDDLE selesai, tetapi storage sedang tidak tersedia. Coba lagi beberapa saat atau hubungi administrator.'
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -203,13 +203,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let driveGenerationClaimed = false
   try {
     const sql = getSQL()
-    const midnightRows = await sql`
+    const middleRows = await sql`
       SELECT done
       FROM daily_records
-      WHERE business_date::text = ${date} AND shift = 'MIDNIGHT' AND store_id = ${storeId}
+      WHERE business_date::text = ${date} AND shift = 'MIDDLE' AND store_id = ${storeId}
       LIMIT 1
     `
-    const midnightComplete = midnightRows[0]?.done === true
+    const middleComplete = middleRows[0]?.done === true
+    // Freshness: submit terakhir di hari itu (mis. CLOSING masuk sesudah backup
+    // terbentuk) bikin backup basi — regenerate + timpa, jangan sajikan PDF lama.
+    const latestRows = await sql`
+      SELECT MAX(submitted_at) AS latest_submitted_at
+      FROM daily_records
+      WHERE business_date::text = ${date} AND store_id = ${storeId}
+    `
+    const latestSubmittedAt = latestRows[0]?.latest_submitted_at ? new Date(String(latestRows[0].latest_submitted_at)) : null
     const [{ storeName, grouped }, storeRows, configRows, personnelRows] = await Promise.all([
       fetchDayGrouped(date, storeId),
       sql`SELECT code, name, drive_account, drive_folder_id FROM stores WHERE id = ${storeId} LIMIT 1`,
@@ -225,12 +233,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const config = (configRows[0]?.extra_config as Record<string, unknown> | undefined) || {}
     const filename = buildPdfFilename(String(config.store_code || storeCode), date)
 
-    // Check existing backup if MIDNIGHT is complete
-    if (midnightComplete) {
+    // Check existing backup if MIDDLE is complete
+    if (middleComplete) {
       if (isNeutral) {
-        // Neutral stores: check R2 backup
+        // Neutral stores: check R2 backup — sajikan hanya kalau masih segar.
+        // Kalau ada submit baru sesudah backup dibentuk (mis. CLOSING belakangan),
+        // jatuh ke bawah: render ulang + upload timpa.
         const existingR2 = await findR2Pdf(storeCode, filename, date)
-        if (existingR2) {
+        const backupStale = !!(
+          existingR2?.lastModified &&
+          latestSubmittedAt &&
+          latestSubmittedAt.getTime() > new Date(existingR2.lastModified).getTime()
+        )
+        if (existingR2 && !backupStale) {
           const r2Response = await downloadR2Pdf(storeCode, filename, date)
           if (r2Response) {
             void markDriveGenerationComplete(date, storeId).catch((error) => console.error('[generate-pdf] Could not update R2 PDF status:', error))
@@ -291,7 +306,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
     console.info('[generate-pdf] Signature resolution summary:', stats)
 
-    if (midnightComplete) {
+    if (middleComplete) {
       if (isNeutral) {
         // Neutral stores: upload backup to R2
         try {
@@ -316,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return sendPdf(res, filename, pdf, midnightComplete ? (isNeutral ? 'generated-r2' : 'generated-drive') : 'generated-on-demand')
+    return sendPdf(res, filename, pdf, middleComplete ? (isNeutral ? 'generated-r2' : 'generated-drive') : 'generated-on-demand')
   } catch (error) {
     if (driveGenerationClaimed) await releaseDriveGenerationClaim(date, storeId).catch((releaseError) => console.error('[generate-pdf] Could not release Drive generation claim:', releaseError))
     console.error('[generate-pdf] Error:', error)
