@@ -19,13 +19,13 @@ type PdfProgressPhase = {
 const PDF_PROGRESS_PHASES: PdfProgressPhase[] = [
   { afterMs: 0, target: 7, label: 'Menghubungkan ke server PDF...' },
   { afterMs: 900, target: 14, label: 'Memvalidasi tanggal dan akses...' },
-  { afterMs: 2200, target: 23, label: 'Memeriksa status shift MIDNIGHT...' },
+  { afterMs: 2200, target: 23, label: 'Memeriksa status shift MIDDLE...' },
   { afterMs: 4000, target: 34, label: 'Mengambil data waste dan konfigurasi...' },
-  { afterMs: 6500, target: 46, label: 'Memeriksa arsip PDF di Google Drive...' },
+  { afterMs: 6500, target: 46, label: 'Memeriksa arsip PDF di cloud storage...' },
   { afterMs: 9500, target: 59, label: 'Memuat dokumentasi dan tanda tangan...' },
   { afterMs: 14000, target: 72, label: 'Menyusun halaman laporan PDF...' },
   { afterMs: 20000, target: 82, label: 'Mengoptimalkan dokumen PDF...' },
-  { afterMs: 28000, target: 89, label: 'Mengamankan salinan PDF ke Google Drive...' },
+  { afterMs: 28000, target: 89, label: 'Mengamankan salinan PDF ke cloud storage...' },
   { afterMs: 40000, target: 94, label: 'Menunggu proses backend selesai...' },
 ]
 
@@ -367,7 +367,7 @@ export default function PdfDownload() {
           </div>
           <div className="rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-500/20 dark:bg-brand-500/5">
             <h2 className="mb-2 text-sm font-bold text-brand-700 dark:text-brand-300">Tips</h2>
-            <p className="text-xs leading-relaxed text-brand-700/80 dark:text-brand-300/80">Generate PDF setelah shift MIDNIGHT selesai supaya datanya lengkap satu hari penuh.</p>
+            <p className="text-xs leading-relaxed text-brand-700/80 dark:text-brand-300/80">Generate PDF setelah shift MIDDLE selesai. Kalau ada data CLOSING belakangan, download ulang — PDF akan dibuat ulang supaya lengkap.</p>
           </div>
         </div>
       </aside>

@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast'
 import { ButtonLoadingSpinner, ProgressOverlay, type ProgressState } from '@/components/ui/loading-spinner'
 import { AuthenticatedImage } from '@/components/ui/authenticated-image'
 import MultiFileUpload from '@/components/ui/multi-file-upload'
-import { getBusinessDateWIB, getCurrentShiftWIB, formatTimeWIB, SHIFTS } from '@shared/timezone'
+import { getBusinessDateWIB, formatTimeWIB, SHIFTS } from '@shared/timezone'
 import { STATIONS, METHODS } from '@shared/schema'
 import { parsePasteWaste, type PasteIssue } from '@/lib/paste-waste-parser'
 import { hasCatalog, initialWasteStep } from '@/lib/store-features'
@@ -70,7 +70,7 @@ type Step = 'paste' | 'config' | 'items' | 'preview' | 'success'
 
 type DraftPayload = {
   businessDate: string
-  shift: (typeof SHIFTS)[number]
+  shift: (typeof SHIFTS)[number] | ''
   selectedStations: Station[]
   rowsByStation: Record<string, WasteRow[]>
   savedAt: number
@@ -127,7 +127,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
 
   const [step, setStep] = useState<Step>(initialWasteStep(pasteMode, store))
   const [businessDate, setBusinessDate] = useState(getBusinessDateWIB())
-  const [shift, setShift] = useState<(typeof SHIFTS)[number]>(getCurrentShiftWIB())
+  const [shift, setShift] = useState<(typeof SHIFTS)[number] | ''>('')
   const [selectedStations, setSelectedStations] = useState<Station[]>(['NOODLE'])
   const [expandedStation, setExpandedStation] = useState<Station>('NOODLE')
   const initDate = getBusinessDateWIB()
@@ -388,7 +388,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     }
 
     setBusinessDate(parsedPaste.businessDate || getBusinessDateWIB())
-    setShift(parsedPaste.shift || getCurrentShiftWIB())
+    setShift(parsedPaste.shift || '')
     setSelectedStations(nextStations)
     setExpandedStation(nextStations[0] || 'NOODLE')
     setRowsByStation(nextRows)
@@ -405,6 +405,10 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   }
 
   async function handleSubmit() {
+    if (!shift) {
+      toast.error('Eh, ada yang kurang', 'Pilih shift dulu dong.')
+      return
+    }
     if (!hasSelectedStations && !testerMode) {
       toast.error('Eh, ada yang kurang', 'Pilih minimal 1 station dong.')
       return
@@ -594,7 +598,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   function resetForm() {
     setStep(pasteMode ? 'paste' : 'config')
     setBusinessDate(getBusinessDateWIB())
-    setShift(getCurrentShiftWIB())
+    setShift('')
     setSelectedStations(['NOODLE'])
     setExpandedStation('NOODLE')
     const resetDate = getBusinessDateWIB()
@@ -724,7 +728,7 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
             </div>
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase text-text-muted">Shift</label>
-              <select value={shift} onChange={(e) => setShift(e.target.value as (typeof SHIFTS)[number])} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500">{SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+              <select value={shift} onChange={(e) => setShift(e.target.value as (typeof SHIFTS)[number] | '')} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500"><option value="">Pilih shift...</option>{SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
             </div>
           </div>
 

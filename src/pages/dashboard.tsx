@@ -340,7 +340,7 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
   )
 }
 
-const SHIFT_ORDER = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT'] as const
+const SHIFT_ORDER = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING'] as const
 const UNITS = ['PORSI', 'PCS', 'GRAM', 'PACK'] as const
 const METODE_LIST = ['DIBUANG', 'DIMUSNAHKAN', 'DIBERIKAN KE PIHAK KETIGA'] as const
 const ALASAN_LIST = ['EXPIRED', 'RUSAK', 'OVER PRODUKSI', 'SALAH PRODUKSI', 'TESTER'] as const

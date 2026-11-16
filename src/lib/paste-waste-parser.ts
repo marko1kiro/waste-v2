@@ -1,5 +1,5 @@
 export const PASTE_STATIONS = ['NOODLE', 'DIMSUM', 'BAR', 'PRODUKSI'] as const
-export const PASTE_SHIFTS = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT'] as const
+export const PASTE_SHIFTS = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING'] as const
 export const PASTE_UNITS = ['PORSI', 'PCS', 'GRAM', 'PACK'] as const
 
 // Typo umum yang otomatis dibetulkan (dengan warning) — jangan biarkan data nyasar shift.

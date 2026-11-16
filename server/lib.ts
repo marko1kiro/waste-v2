@@ -348,7 +348,7 @@ export async function deleteBlob(url: string): Promise<void> {
 }
 
 // ─── Shared SQL / Data Helpers ─────────────────────────
-export const SHIFT_ORDER_SQL = `CASE shift WHEN 'OPENING' THEN 1 WHEN 'MIDDLE' THEN 2 WHEN 'CLOSING' THEN 3 WHEN 'MIDNIGHT' THEN 4 END`
+export const SHIFT_ORDER_SQL = `CASE shift WHEN 'MIDNIGHT' THEN 1 WHEN 'OPENING' THEN 2 WHEN 'MIDDLE' THEN 3 WHEN 'CLOSING' THEN 4 END`
 
 export interface GroupedShiftData {
   storeName: string
@@ -369,10 +369,10 @@ export async function fetchDayGrouped(date: string, storeId?: number | null): Pr
       WHERE business_date::text = ${date}
       ORDER BY
         CASE shift
-          WHEN 'OPENING' THEN 1
-          WHEN 'MIDDLE' THEN 2
-          WHEN 'CLOSING' THEN 3
-          WHEN 'MIDNIGHT' THEN 4
+          WHEN 'MIDNIGHT' THEN 1
+          WHEN 'OPENING' THEN 2
+          WHEN 'MIDDLE' THEN 3
+          WHEN 'CLOSING' THEN 4
         END,
         created_at ASC
     `
@@ -387,16 +387,16 @@ export async function fetchDayGrouped(date: string, storeId?: number | null): Pr
       WHERE business_date::text = ${date} AND store_id = ${storeId}
       ORDER BY
         CASE shift
-          WHEN 'OPENING' THEN 1
-          WHEN 'MIDDLE' THEN 2
-          WHEN 'CLOSING' THEN 3
-          WHEN 'MIDNIGHT' THEN 4
+          WHEN 'MIDNIGHT' THEN 1
+          WHEN 'OPENING' THEN 2
+          WHEN 'MIDDLE' THEN 3
+          WHEN 'CLOSING' THEN 4
         END,
         created_at ASC
     `
 
   const grouped: Record<string, Array<Record<string, unknown>>> = {
-    OPENING: [], MIDDLE: [], CLOSING: [], MIDNIGHT: [],
+    MIDNIGHT: [], OPENING: [], MIDDLE: [], CLOSING: [],
   }
 
   for (const row of rows) {
@@ -436,7 +436,7 @@ export async function fetchDayGrouped(date: string, storeId?: number | null): Pr
 
 // ─── Validators ────────────────────────────────────────
 export const STATIONS = ['NOODLE', 'DIMSUM', 'BAR', 'PRODUKSI'] as const
-export const SHIFTS = ['OPENING', 'MIDDLE', 'CLOSING', 'MIDNIGHT'] as const
+export const SHIFTS = ['MIDNIGHT', 'OPENING', 'MIDDLE', 'CLOSING'] as const
 
 function isCalendarDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -487,7 +487,7 @@ export function validateWasteSubmission(body: Record<string, unknown>): { succes
   const jamTanggalPemusnahanList = parseArray(body.jamTanggalPemusnahanList) || []
   const dokumentasiUrls = parseArray(body.dokumentasiUrls) || []
   const tanggal = body.tanggal
-  const shift = body.shift || 'OPENING'
+  const shift = body.shift
   const kategoriInduk = body.kategoriInduk
   if (!isCalendarDate(tanggal)) return { success: false, message: 'Tanggal harus kalender valid YYYY-MM-DD.' }
   if (!SHIFTS.includes(shift as typeof SHIFTS[number])) return { success: false, message: 'Shift tidak valid.' }
