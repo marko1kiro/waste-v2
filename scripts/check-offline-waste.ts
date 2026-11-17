@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { DRAFT_TTL_MS, canApplyRestore, canClearDraft, classifyQueueFailure, fingerprintQueueItem, isDraftExpired, nextQueueItem, retryDelay, shouldAutoRetry, shouldPresentTerminal, shouldQueueOnlineFailure, transitionQueueItem, recoverQueueItem, shouldPurgeDraft, validateSchema, selectCanvasOutput, nextSubmission, refreshLease, shouldResumeQueue, shouldUseDirectSubmitFallback } from '../src/lib/offline-waste.ts'
+import { DRAFT_TTL_MS, buildDraftKey, buildLegacyDraftKey, canApplyRestore, classifyQueueFailure, draftMatchesSubmission, fingerprintQueueItem, isDraftExpired, nextQueueItem, retryDelay, shouldAutoRetry, shouldPresentTerminal, shouldQueueOnlineFailure, transitionQueueItem, recoverQueueItem, shouldPurgeDraft, validateSchema, selectCanvasOutput, nextSubmission, refreshLease, shouldResumeQueue, shouldUseDirectSubmitFallback } from '../src/lib/offline-waste.ts'
 
 const now = 1_000_000
 assert.equal(isDraftExpired({ updatedAt: now - DRAFT_TTL_MS - 1 }, now), true)
@@ -38,7 +38,14 @@ assert.equal(retryDelay(1), 250)
 assert.equal(retryDelay(3), 750)
 assert.equal(shouldPresentTerminal('completed'), true)
 assert.equal(shouldPresentTerminal('duplicate'), true)
-assert.equal(canClearDraft(4, 4), true)
-assert.equal(canClearDraft(4, 5), false)
+assert.equal(buildDraftKey('agus', 'manual', '2026-11-18', 'MIDNIGHT'), 'agus:manual:2026-11-18:MIDNIGHT')
+assert.equal(buildDraftKey('agus', 'paste', '2026-11-18', ''), 'agus:paste:2026-11-18:')
+assert.notEqual(buildDraftKey('agus', 'manual', '2026-11-18', 'MIDNIGHT'), buildDraftKey('agus', 'manual', '2026-11-17', 'MIDNIGHT'))
+assert.notEqual(buildDraftKey('agus', 'manual', '2026-11-18', 'MIDNIGHT'), buildDraftKey('agus', 'manual', '2026-11-18', 'OPENING'))
+assert.equal(buildLegacyDraftKey('agus', 'manual'), 'agus:manual')
+assert.equal(draftMatchesSubmission({ businessDate: '2026-11-18', shift: 'MIDNIGHT' }, { businessDate: '2026-11-18', shift: 'MIDNIGHT' }), true)
+assert.equal(draftMatchesSubmission({ businessDate: '2026-11-17', shift: 'MIDNIGHT' }, { businessDate: '2026-11-18', shift: 'MIDNIGHT' }), false)
+assert.equal(draftMatchesSubmission({ businessDate: '2026-11-18', shift: 'OPENING' }, { businessDate: '2026-11-18', shift: 'MIDNIGHT' }), false)
+assert.equal(draftMatchesSubmission({}, { businessDate: '2026-11-18', shift: 'MIDNIGHT' }), false)
 assert.equal(fingerprintQueueItem({ form: 'manual', businessDate: '2026-08-07', shift: 'OPENING', submissions: [{ payload: { a: 1 } }] }), fingerprintQueueItem({ shift: 'OPENING', submissions: [{ payload: { a: 1 } }], businessDate: '2026-08-07', form: 'manual' }))
 console.log('check-offline-waste: PASS')

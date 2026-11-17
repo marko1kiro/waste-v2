@@ -13,7 +13,7 @@ import { getBusinessDateWIB, formatTimeWIB, SHIFTS } from '@shared/timezone'
 import { STATIONS, METHODS } from '@shared/schema'
 import { parsePasteWaste, type PasteIssue } from '@/lib/paste-waste-parser'
 import { hasCatalog, initialWasteStep } from '@/lib/store-features'
-import { canApplyRestore, deleteDraft, filesToPhotos, getDraft, listQueue, photosToFiles, queueSnapshot, retryQueueItem, saveDraft, shouldUseDirectSubmitFallback, syncQueue, type QueueItem } from '@/lib/offline-waste'
+import { buildDraftKey, canApplyRestore, deleteDraft, deleteLegacyDraft, filesToPhotos, getDraft, getLegacyDraft, listQueue, photosToFiles, queueSnapshot, retryQueueItem, saveDraft, shouldUseDirectSubmitFallback, syncQueue, type QueueItem } from '@/lib/offline-waste'
 import { STATION_UI } from '@shared/station-ui'
 // TESTER_ITEMS dipindah ke sini sebagai const lokal (dulu di shared/tester.ts).
 // Daftar checklist observasi akhir shift untuk "Tester Mode".
@@ -117,11 +117,14 @@ export default function AutoWaste() {
 function WasteForm({ pasteMode }: { pasteMode: boolean }) {
   const { user, store, isAuthenticated } = useAuth()
   const catalogEnabled = hasCatalog(store)
-  const restoredRef = useRef(false)
+  const lastRestoredKey = useRef<string | null>(null)
+  const suppressNextSave = useRef(false)
+  const blockDraftSave = useRef(false)
   const mountedRef = useRef(true)
   const draftRevision = useRef(0)
   const markDirty = () => { draftRevision.current += 1 }
   const [restoreDone, setRestoreDone] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   const [persistenceStatus, setPersistenceStatus] = useState('')
   const [queueItems, setQueueItems] = useState<QueueItem[]>([])
 
@@ -182,24 +185,66 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     window.addEventListener('change', dirty, true)
     return () => { window.removeEventListener('input', dirty, true); window.removeEventListener('change', dirty, true) }
   }, [])
-  useEffect(() => {
-    if (!user || restoredRef.current) return
-    restoredRef.current = true
+  const hasFormData = Object.values(rowsByStation).some((rows) => rows.some((r) => r.namaProduk.trim() !== '')) || rawPaste.trim() !== '' || testerMode || Object.values(filesByStation).some((files) => files.length > 0)
+  async function attemptRestore() {
+    if (!user) return
+    const key = buildDraftKey(user.username, form, businessDate, shift)
+    if (lastRestoredKey.current === key || hasFormData) return
     const revisionAtRequest = draftRevision.current
-    void getDraft<DraftPayload>(user.username, form).then((draft) => {
-      if (!draft || !canApplyRestore(revisionAtRequest, draftRevision.current)) return
+    try {
+      let draft = await getDraft<DraftPayload>(user.username, form, businessDate, shift)
+      if (!draft) {
+        const legacy = await getLegacyDraft<DraftPayload>(user.username, form)
+        if (legacy && legacy.value.businessDate === businessDate && legacy.value.shift === shift) {
+          draft = legacy
+          void saveDraft({ key, userId: user.username, form, value: legacy.value, photos: legacy.photos, updatedAt: Date.now(), revision: legacy.revision, schemaVersion: 1 }).catch(() => undefined)
+          void deleteLegacyDraft(user.username, form).catch(() => undefined)
+        }
+      }
+      if (!draft) { setRestoreError(null); return }
+      if (!canApplyRestore(revisionAtRequest, draftRevision.current)) return
       draftRevision.current = draft.revision
       const value = draft.value
-      setBusinessDate(value.businessDate); setShift(value.shift); setSelectedStations(value.selectedStations); setExpandedStation(value.selectedStations[0] || 'NOODLE'); setRowsByStation((prev) => ({ ...prev, ...value.rowsByStation })); setQcName(value.qcName || ''); setManagerName(value.managerName || ''); setTesterMode(Boolean(value.testerMode)); setTesterChecks(value.testerChecks || {}); if (pasteMode) setRawPaste(value.pasteRaw || ''); setFilesByStation(Object.fromEntries(Object.entries(draft.photos).map(([station, photos]) => [station, photosToFiles(photos)]))); setPersistenceStatus('Draft dipulihkan.')
-    }).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.')).finally(() => setRestoreDone(true))
-  }, [form, pasteMode, user])
+      setBusinessDate(value.businessDate); setShift(value.shift); setSelectedStations(value.selectedStations); setExpandedStation(value.selectedStations[0] || 'NOODLE'); setRowsByStation((prev) => ({ ...prev, ...value.rowsByStation })); setQcName(value.qcName || ''); setManagerName(value.managerName || ''); setTesterMode(Boolean(value.testerMode)); setTesterChecks(value.testerChecks || {}); if (pasteMode) setRawPaste(value.pasteRaw || ''); setFilesByStation(Object.fromEntries(Object.entries(draft.photos).map(([station, photos]) => [station, photosToFiles(photos)])))
+      lastRestoredKey.current = key
+      setRestoreError(null)
+      setPersistenceStatus('Draft dipulihkan.')
+    } catch {
+      setRestoreError('Draft tidak bisa dibaca dari penyimpanan lokal. Data lama masih tersimpan — coba pulihkan lagi, jangan isi ulang dulu.')
+      setPersistenceStatus('Draft tidak bisa dibaca.')
+    } finally {
+      setRestoreDone(true)
+    }
+  }
+  useEffect(() => { void attemptRestore() }, [businessDate, filesByStation, form, hasFormData, pasteMode, rawPaste, rowsByStation, shift, testerMode, user])
+  useEffect(() => { blockDraftSave.current = false }, [filesByStation, rawPaste, rowsByStation, testerChecks, testerMode])
   useEffect(() => {
     if (!user || !restoreDone) return
+    if (suppressNextSave.current) { suppressNextSave.current = false; return }
+    if (blockDraftSave.current) return
+    if (restoreError && !hasFormData) return
     draftRevision.current += 1
     setPersistenceStatus('Menyimpan draft...')
-    const timer = window.setTimeout(() => { const revision = draftRevision.current + 1; draftRevision.current = revision; void saveDraft({ key: `${user.username}:${form}`, userId: user.username, form, value: payload, photos: Object.fromEntries(Object.entries(filesByStation).map(([station, files]) => [station, filesToPhotos(files)])), updatedAt: Date.now(), revision, schemaVersion: 1 }).then(() => setPersistenceStatus('Draft tersimpan.')).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.')) }, 800)
+    const timer = window.setTimeout(() => { const revision = draftRevision.current + 1; draftRevision.current = revision; void saveDraft({ key: buildDraftKey(user.username, form, businessDate, shift), userId: user.username, form, value: payload, photos: Object.fromEntries(Object.entries(filesByStation).map(([station, files]) => [station, filesToPhotos(files)])), updatedAt: Date.now(), revision, schemaVersion: 1 }).then(() => setPersistenceStatus('Draft tersimpan.')).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.')) }, 800)
     return () => window.clearTimeout(timer)
-  }, [businessDate, filesByStation, form, managerName, pasteMode, parsedPaste.destructionTime, qcName, rawPaste, restoreDone, rowsByStation, selectedStations, shift, testerChecks, testerMode, user])
+  }, [businessDate, filesByStation, form, hasFormData, managerName, pasteMode, parsedPaste.destructionTime, qcName, rawPaste, restoreDone, restoreError, rowsByStation, selectedStations, shift, testerChecks, testerMode, user])
+  const latestDraftRef = useRef({ payload, filesByStation })
+  useEffect(() => { latestDraftRef.current = { payload, filesByStation } })
+  useEffect(() => {
+    if (!user) return
+    const flush = () => {
+      if (!restoreDone || blockDraftSave.current || step === 'success') return
+      const latest = latestDraftRef.current
+      const empty = !Object.values(latest.payload.rowsByStation).some((rows) => rows.some((r) => r.namaProduk.trim() !== '')) && !latest.payload.pasteRaw?.trim() && !latest.payload.testerMode && !Object.values(latest.filesByStation).some((files) => files.length > 0)
+      if (restoreError && empty) return
+      draftRevision.current += 1
+      void saveDraft({ key: buildDraftKey(user.username, form, latest.payload.businessDate, latest.payload.shift), userId: user.username, form, value: latest.payload, photos: Object.fromEntries(Object.entries(latest.filesByStation).map(([station, files]) => [station, filesToPhotos(files)])), updatedAt: Date.now(), revision: draftRevision.current, schemaVersion: 1 }).catch(() => undefined)
+    }
+    const onVisibility = () => { if (document.hidden) flush() }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', flush)
+    return () => { document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('pagehide', flush) }
+  }, [form, restoreDone, restoreError, step, user])
   useEffect(() => {
     if (!user) return
     const refresh = () => void listQueue(user.username).then(setQueueItems).catch(() => setPersistenceStatus('Penyimpanan lokal tidak tersedia.'))
@@ -459,9 +504,11 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
           const current = queued.find((queuedItem) => queuedItem.id === item.id)
           if (!current || current.state === 'completed') {
             // Data sudah terkirim: hapus draft lokal SEKARANG juga (tanpa nunggu klik "Shift Baru").
-            // Penghapusan revision-guarded di syncQueue sering gagal karena counter revision ikut
-            // naik tiap klik (markDirty), sehingga draft basi bisa kepulihkan di sesi berikutnya.
-            if (user) await deleteDraft(user.username, form).catch(() => undefined)
+            // syncQueue juga menghapus draft berbasis identitas tanggal+shift (bukan revisi,
+            // karena counter revision ikut naik tiap klik sehingga guard revisi selalu meleset).
+            // blockDraftSave mencegah draft ter-submit ini tersimpan ulang (mis. oleh flush
+            // saat tab ditutup) sebelum user mulai input baru.
+            if (user) { blockDraftSave.current = true; await deleteDraft(user.username, form, businessDate, shift).catch(() => undefined) }
             setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`); setStep('success'); toast.success('Mantap', 'Data waste udah kesimpen.')
           }
           else toast.info('Data diantrekan', current.lastError || 'Menunggu sinkronisasi.')
@@ -581,13 +628,13 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
       tick('Update status...')
       await queryClient.invalidateQueries({ queryKey: ['shift-status'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard-data'] })
-      if (user) await deleteDraft(user.username, form).catch(() => undefined)
+      if (user) { blockDraftSave.current = true; await deleteDraft(user.username, form, businessDate, shift).catch(() => undefined) }
       setSuccessMessage(`${hasSelectedStations ? `${selectedStations.length} station` : ''}${hasSelectedStations && testerMode ? ' + ' : ''}${testerMode ? 'tester' : ''} berhasil disimpan!`)
       setStep('success')
       toast.success('Mantap', 'Data waste udah kesimpen.')
     } catch (err) {
       const status = typeof err === 'object' && err && 'status' in err ? Number(err.status) : undefined
-      if (status === 409 && user) await deleteDraft(user.username, form).catch(() => undefined)
+      if (status === 409 && user) { blockDraftSave.current = true; await deleteDraft(user.username, form, businessDate, shift).catch(() => undefined) }
       toast.error('Waduh gagal submit', status === 409 ? 'Data sudah ada di server' : err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
@@ -613,13 +660,16 @@ function WasteForm({ pasteMode }: { pasteMode: boolean }) {
     setTesterCollapsed(true)
     setRawPaste('')
     setPasteApplyIssues([])
-    if (user) void deleteDraft(user.username, form).catch(() => undefined)
+    blockDraftSave.current = false
+    suppressNextSave.current = true
+    if (user) void deleteDraft(user.username, form, businessDate, shift).catch(() => undefined)
   }
 
   return (
     <div className="mx-auto w-full max-w-7xl py-2" onClickCapture={markDirty} onChangeCapture={markDirty}>
       {progress && <ProgressOverlay progress={progress} />}
       {persistenceStatus && <div role="status" aria-live="polite" className="mb-3 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"><span>{persistenceStatus}</span>{persistenceStatus === 'Draft dipulihkan.' && <button type="button" onClick={() => setPersistenceStatus('')} aria-label="Tutup status draft">Tutup</button>}</div>}
+      {restoreError && <div role="alert" className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><span>{restoreError}</span><button type="button" onClick={() => void attemptRestore()} className="shrink-0 rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Coba pulihkan lagi</button></div>}
       {queueItems.length > 0 && <section aria-label="Antrean sinkronisasi" className="mb-3 rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-400"><p className="font-semibold">Antrean: {queueItems.length}</p>{queueItems.map((item) => <div key={item.id} className="mt-2 flex items-center justify-between gap-2"><span>{item.stations.join(', ')} • {item.businessDate} • {item.shift} • {item.state}{item.lastError ? `: ${item.lastError}` : ''}</span>{(item.state === 'retryable-failure' || item.state === 'manual-failure') && <button type="button" onClick={() => { retryQueueItem(item.id).then(() => syncQueue(item.userId, apiClient.fetch)).then(() => listQueue(item.userId)).then(setQueueItems).catch((err) => toast.error('Gagal coba lagi', err instanceof Error ? err.message : 'Unknown error')) }} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Coba Lagi</button>}{item.state === 'auth-required' && <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('auth:session-expired'))} className="rounded border border-warning-300 px-2 py-1 font-medium dark:border-warning-500/40">Login</button>}</div>)}</section>}
 
       <div className="lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
